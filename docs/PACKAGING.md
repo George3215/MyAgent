@@ -16,17 +16,17 @@ Generated outputs:
 
 ```text
 dist/packages/macos/EvoScientist Studio.app
-dist/installers/EvoScientist-Studio-0.1.9-macos.dmg
-dist/installers/EvoScientist-Studio-0.1.9-macos.pkg
+dist/installers/EvoScientist-Studio-0.1.10-macos.dmg
+dist/installers/EvoScientist-Studio-0.1.10-macos.pkg
 
 dist/packages/windows/EvoScientist-Studio/
 dist/packages/windows/EvoScientist-Studio/install.ps1
 dist/packages/windows/EvoScientist-Studio/EvoScientistStudio.iss
-dist/installers/EvoScientist-Studio-0.1.9-windows-portable.zip
+dist/installers/EvoScientist-Studio-0.1.10-windows-portable.zip
 
 dist/packages/linux/EvoScientist-Studio.AppDir/
 dist/packages/linux/EvoScientist-Studio.AppDir/install.sh
-dist/installers/EvoScientist-Studio-0.1.9-linux-appdir.tar.gz
+dist/installers/EvoScientist-Studio-0.1.10-linux-appdir.tar.gz
 ```
 
 The packages start the local `studio-api` sidecar and serve the Studio UI from
@@ -82,7 +82,7 @@ On a Linux build machine with `appimagetool` installed:
 
 ```bash
 appimagetool dist/packages/linux/EvoScientist-Studio.AppDir \
-  dist/installers/EvoScientist-Studio-0.1.9-linux.AppImage
+  dist/installers/EvoScientist-Studio-0.1.10-linux.AppImage
 ```
 
 ## Phase 4: Desktop shell

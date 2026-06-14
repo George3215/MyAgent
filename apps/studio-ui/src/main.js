@@ -13,12 +13,11 @@ const state = {
   runtime: { active_runtime: "claude_code" },
   modelConfig: { configured: false },
   runs: [],
+  chatSessions: [],
+  activeChatId: "",
 };
 
-const API_BASE =
-  location.protocol === "http:" || location.protocol === "https:"
-    ? ""
-    : "http://127.0.0.1:6287";
+const API_BASE = resolveApiBase();
 
 const pageMeta = {
   chat: ["Neural Workbench", "科研工作台"],
@@ -30,6 +29,27 @@ const pageMeta = {
   memory: ["Persistent Memory", "记忆"],
   settings: ["Model and API", "模型与接口"],
 };
+
+function resolveApiBase() {
+  const fallback = location.protocol === "file:" ? "http://127.0.0.1:6287" : "";
+  try {
+    const params = new URLSearchParams(location.search);
+    const queryApi = params.get("api") || params.get("api_base");
+    if (queryApi) {
+      const normalized = queryApi.trim().replace(/\/+$/, "");
+      localStorage.setItem("EVOSCIENTIST_API_BASE", normalized);
+      return normalized;
+    }
+    const stored = localStorage.getItem("EVOSCIENTIST_API_BASE");
+    return stored ? stored.replace(/\/+$/, "") : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function apiBaseLabel() {
+  return API_BASE || "same-origin";
+}
 
 const tasks = [
   { label: "保留 EvoScientist upstream 运行时", status: "done" },
@@ -209,6 +229,11 @@ async function refreshBackendState({ silent = false } = {}) {
     state.modelConfig = data.model || state.modelConfig;
     const runData = await apiGet("/api/runs");
     state.runs = Array.isArray(runData.runs) ? runData.runs : [];
+    const chatData = await apiGet("/api/chat/state");
+    state.chatSessions = Array.isArray(chatData.sessions) ? chatData.sessions : [];
+    if (!state.activeChatId && state.chatSessions.length) {
+      state.activeChatId = state.chatSessions[0].id;
+    }
     renderTimeline({
       t: "now",
       title: "studio-api",
@@ -221,6 +246,7 @@ async function refreshBackendState({ silent = false } = {}) {
     }
   }
   updateBackendBadges();
+  renderSidebarSessions();
   if (["install", "settings", "chat", "permissions"].includes(state.view)) {
     renderView(state.view);
   }
@@ -237,6 +263,58 @@ function updateBackendBadges() {
     taskState.textContent = state.apiOnline ? "已连接" : "等待后端";
     taskState.classList.toggle("active", state.apiOnline);
   }
+}
+
+async function refreshChatState() {
+  try {
+    const chatData = await apiGet("/api/chat/state");
+    state.chatSessions = Array.isArray(chatData.sessions) ? chatData.sessions : [];
+    if (!state.activeChatId && state.chatSessions.length) {
+      state.activeChatId = state.chatSessions[0].id;
+    }
+    renderSidebarSessions();
+    if (state.view === "chat") renderView("chat");
+  } catch (error) {
+    renderTimeline({ t: "now", title: "chat history", body: error.message });
+  }
+}
+
+function activeChatSession() {
+  if (!state.activeChatId) return null;
+  return state.chatSessions.find((session) => session.id === state.activeChatId) || null;
+}
+
+function renderSidebarSessions() {
+  const host = document.querySelector("#sessionList");
+  if (!host) return;
+  const sessions = state.chatSessions.slice(0, 5);
+  host.innerHTML = `
+    <div class="section-heading">最近会话</div>
+    ${sessions.length ? sessions.map((session) => `
+      <button class="session-item ${session.id === state.activeChatId ? "selected" : ""}" data-chat-session-id="${escapeHtml(session.id)}" type="button">
+        <span class="status-dot ${chatSessionStatusClass(session)}"></span>
+        <span>
+          <strong>${escapeHtml(session.title || "科研会话")}</strong>
+          <small>${escapeHtml(session.updated_at || session.created_at || "")}</small>
+        </span>
+      </button>
+    `).join("") : `
+      <button class="session-item selected" type="button">
+        <span class="status-dot paused"></span>
+        <span><strong>暂无历史</strong><small>发送第一条消息后生成</small></span>
+      </button>
+    `}
+  `;
+}
+
+function chatSessionStatusClass(session) {
+  const messages = Array.isArray(session.messages) ? session.messages : [];
+  const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+  if (!lastAssistant) return "paused";
+  if (lastAssistant.status === "running") return "running";
+  if (lastAssistant.status === "done") return "done";
+  if (lastAssistant.status === "failed") return "failed";
+  return "paused";
 }
 
 function displayValue(value, fallback = "未配置") {
@@ -294,6 +372,7 @@ function backendConsole({ compact = false } = {}) {
       <span class="panel-badge ${state.apiOnline ? "active" : ""}">${state.apiOnline ? "studio-api online" : "studio-api offline"}</span>
     </div>
     <div class="runtime-strip">
+      ${statusToken("api", apiBaseLabel())}
       ${statusToken("runtime", runtime.active_runtime || "claude_code")}
       ${statusToken("strategy", runtime.bootstrap_strategy || "claude_code_first")}
       ${statusToken("model", model.model || "kimi-k2.5:cloud")}
@@ -376,30 +455,38 @@ function backendConsole({ compact = false } = {}) {
 
 function chatView() {
   const wrap = h("div", "chat-layout");
+  const session = activeChatSession();
+  const messages = Array.isArray(session?.messages) ? session.messages : [];
+  const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+  const runtime = state.runtime?.active_runtime || "claude_code";
 
+  const history = h("aside", "conversation-history");
+  history.innerHTML = `
+    <div class="history-head">
+      <strong>会话历史</strong>
+      <button class="icon-button" id="newChat" type="button" title="新建会话">+</button>
+    </div>
+    <div class="history-list">
+      ${state.chatSessions.length ? state.chatSessions.map((item) => `
+        <button class="history-item ${item.id === state.activeChatId ? "selected" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button">
+          <strong>${escapeHtml(item.title || "科研会话")}</strong>
+          <span>${escapeHtml(item.updated_at || item.created_at || "")}</span>
+        </button>
+      `).join("") : `<div class="history-empty">暂无历史。发送第一条消息后会自动保存。</div>`}
+    </div>
+    <button class="primary-button small secondary" id="refreshChatHistory" type="button">刷新历史</button>
+  `;
+
+  const main = h("section", "chat-main");
   const chat = h("section", "chat-feed");
-  chat.innerHTML = `
-    <div class="message user">
-      <div class="message-meta">你</div>
-      <p>Studio 要兼容 EvoScientist，保留原项目，以后自己持续迭代；用户安装后一步步填写 API 和 key。</p>
-    </div>
+  chat.innerHTML = messages.length ? messages.map(chatMessageHtml).join("") : `
     <div class="message assistant">
-      <div class="message-meta">EvoScientist Studio</div>
-      <p>当前架构是“Studio 前端 + 本地 studio-api + EvoScientist Core”。前端会直接调用本地 API；安装、模型配置、运行任务都由后端执行。</p>
+      <div class="message-meta">EvoScientist Studio · ready</div>
+      <p>这里现在是真实对话窗口。发送消息后，Studio 会调用本地 studio-api，启动 Claude Code 或 EvoScientist Core，并把 run 结果写入历史。</p>
       <div class="tool-strip">
-        <button title="后端状态">API ${state.apiOnline ? "ONLINE" : "OFFLINE"}</button>
-        <button title="Claude Code">CLAUDE ${state.claude.status || "UNKNOWN"}</button>
-        <button title="安装状态">CORE ${state.bootstrap.status || "UNKNOWN"}</button>
-      </div>
-    </div>
-    <div class="approval-card">
-      <div>
-        <strong>审批请求</strong>
-        <p>允许 Studio 安装 Claude Code 和 Ollama，用 Ollama 模型通道驱动 Claude Code 安装 EvoScientist、调用国产/本地模型，并汇总科研任务进度；破坏性删除命令永久拒绝。</p>
-      </div>
-      <div class="approval-actions">
-        <button class="approval-button deny" type="button">拒绝</button>
-        <button class="approval-button allow" type="button">允许</button>
+        <button title="后端状态" type="button">API ${state.apiOnline ? "ONLINE" : "OFFLINE"}</button>
+        <button title="Claude Code" type="button">CLAUDE ${state.claude.phase || state.claude.status || "UNKNOWN"}</button>
+        <button title="安装状态" type="button">CORE ${state.bootstrap.status || "UNKNOWN"}</button>
       </div>
     </div>
   `;
@@ -408,29 +495,97 @@ function chatView() {
 
   const composer = h("form", "composer");
   composer.innerHTML = `
+    <select id="chatRuntime" aria-label="runtime">
+      <option value="claude_code" ${runtime === "claude_code" ? "selected" : ""}>Claude Code</option>
+      <option value="evoscientist" ${runtime === "evoscientist" ? "selected" : ""}>EvoScientist</option>
+    </select>
     <input aria-label="message" placeholder="输入科研任务、实验假设或文件分析需求" />
     <button class="primary-button small" type="submit">发送</button>
   `;
-  composer.addEventListener("submit", (event) => {
+  composer.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = composer.querySelector("input");
-    if (!input.value.trim()) return;
-    const msg = h("div", "message user");
-    msg.innerHTML = `<div class="message-meta">你</div><p>${escapeHtml(input.value)}</p>`;
-    chat.append(msg);
+    const runtimeSelect = composer.querySelector("#chatRuntime");
+    const prompt = input.value.trim();
+    if (!prompt) return;
+    const sendButton = composer.querySelector("button");
+    sendButton.disabled = true;
+    sendButton.textContent = "运行中";
+    try {
+      const response = await apiPost("/api/chat/send", {
+        session_id: state.activeChatId,
+        runtime: runtimeSelect.value,
+        prompt,
+        timeout_seconds: runtimeSelect.value === "claude_code" ? 90 : 180,
+      });
+      state.activeChatId = response.session?.id || state.activeChatId;
+      state.chatSessions = Array.isArray(response.chat?.sessions) ? response.chat.sessions : state.chatSessions;
+      state.runtime = { ...(state.runtime || {}), active_runtime: runtimeSelect.value };
+      if (response.error) {
+        renderTimeline({ t: "now", title: "chat error", body: response.error });
+      } else {
+        renderTimeline({ t: "now", title: "chat run", body: `已启动真实任务：${response.run?.run_id || "unknown"}` });
+      }
+      renderSidebarSessions();
+      renderView("chat");
+      pollChatRun(response.run?.run_id);
+    } catch (error) {
+      renderTimeline({ t: "now", title: "chat error", body: error.message });
+    } finally {
+      sendButton.disabled = false;
+      sendButton.textContent = "发送";
+    }
     input.value = "";
   });
 
   const lower = h("section", "artifact-dock");
   lower.innerHTML = `
-    <div class="dock-header"><strong>产物与日志</strong><span>6 files · 1 active log</span></div>
-    <div class="artifact-row"><span>兼容层设计</span><small>Core adapter · draft</small></div>
-    <div class="artifact-row"><span>授权与安装流程</span><small>Docs · ready</small></div>
-    <div class="artifact-row"><span>Studio UI 原型</span><small>Static build · preview</small></div>
+    <div class="dock-header"><strong>当前会话日志</strong><span>${escapeHtml(session?.title || "新会话")}</span></div>
+    ${latestAssistant ? `
+      <div class="artifact-row"><span>Runtime</span><small>${escapeHtml(latestAssistant.runtime || "unknown")}</small></div>
+      <div class="artifact-row"><span>Status</span><small>${escapeHtml(latestAssistant.status || "unknown")}</small></div>
+      <div class="artifact-row"><span>Run ID</span><small>${escapeHtml(latestAssistant.run_id || "")}</small></div>
+      <pre class="log-preview">${escapeHtml(latestAssistant.content || "")}</pre>
+    ` : `<div class="history-empty">还没有真实 run。发送消息后这里会显示模型输出和错误日志。</div>`}
   `;
 
-  wrap.append(chat, composer, lower);
+  main.append(chat, composer, lower);
+  wrap.append(history, main);
   return wrap;
+}
+
+function chatMessageHtml(message) {
+  const role = message.role === "user" ? "user" : "assistant";
+  const label = role === "user" ? "你" : `${message.runtime || "Studio"} · ${message.status || "message"}`;
+  return `
+    <div class="message ${role}">
+      <div class="message-meta">${escapeHtml(label)}</div>
+      <p>${formatMessageContent(message.content || "")}</p>
+      ${message.run_id ? `<div class="message-run">${escapeHtml(message.run_id)}</div>` : ""}
+    </div>
+  `;
+}
+
+function formatMessageContent(value) {
+  return escapeHtml(String(value || "")).replace(/\n/g, "<br>");
+}
+
+function pollChatRun(runId) {
+  if (!runId) return;
+  const timer = setInterval(async () => {
+    try {
+      await refreshChatState();
+      const session = activeChatSession();
+      const messages = Array.isArray(session?.messages) ? session.messages : [];
+      const message = messages.find((item) => item.run_id === runId);
+      if (message && message.status !== "running") {
+        clearInterval(timer);
+      }
+    } catch (error) {
+      clearInterval(timer);
+      renderTimeline({ t: "now", title: "chat poll", body: error.message });
+    }
+  }, 1800);
 }
 
 function selectOption(value, label, current) {
@@ -804,7 +959,7 @@ function activateNav(view) {
 }
 
 function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, (char) => ({
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
@@ -822,6 +977,15 @@ document.querySelector("#navList").addEventListener("click", (event) => {
   location.hash = nextView;
 });
 
+document.querySelector("#sessionList")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-chat-session-id]");
+  if (!button) return;
+  state.activeChatId = button.dataset.chatSessionId;
+  activateNav("chat");
+  renderView("chat");
+  location.hash = "chat";
+});
+
 window.addEventListener("hashchange", () => {
   const nextView = location.hash.replace("#", "");
   activateNav(nextView);
@@ -829,6 +993,35 @@ window.addEventListener("hashchange", () => {
 });
 
 viewHost.addEventListener("click", async (event) => {
+  const historyButton = event.target.closest("[data-chat-session-id]");
+  if (historyButton) {
+    state.activeChatId = historyButton.dataset.chatSessionId;
+    activateNav("chat");
+    renderSidebarSessions();
+    renderView("chat");
+    location.hash = "chat";
+    return;
+  }
+
+  const newChatButton = event.target.closest("#newChat");
+  if (newChatButton) {
+    state.activeChatId = "";
+    renderSidebarSessions();
+    renderView("chat");
+    return;
+  }
+
+  const refreshChatButton = event.target.closest("#refreshChatHistory");
+  if (refreshChatButton) {
+    refreshChatButton.disabled = true;
+    try {
+      await refreshChatState();
+    } finally {
+      refreshChatButton.disabled = false;
+    }
+    return;
+  }
+
   const claudeButton = event.target.closest("#installClaude");
   if (claudeButton) {
     claudeButton.disabled = true;

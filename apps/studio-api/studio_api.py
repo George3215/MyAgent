@@ -118,6 +118,7 @@ MODEL_STATE = STATE_DIR / "model_config.json"
 CLAUDE_STATE = STATE_DIR / "claude_code.json"
 OLLAMA_STATE = STATE_DIR / "ollama.json"
 RUNTIME_STATE = STATE_DIR / "runtime.json"
+CHAT_STATE = STATE_DIR / "chat_sessions.json"
 SECRET_ENV = HOME / "secrets.env"
 
 
@@ -954,6 +955,156 @@ def pid_is_running(pid: int) -> bool:
         return False
 
 
+def chat_default() -> dict:
+    return {"sessions": []}
+
+
+def load_chat_state() -> dict:
+    data = load_json(CHAT_STATE, chat_default())
+    if not isinstance(data.get("sessions"), list):
+        data["sessions"] = []
+    return data
+
+
+def write_chat_state(data: dict) -> None:
+    write_json(CHAT_STATE, data)
+
+
+def chat_title(prompt: str) -> str:
+    compact = " ".join(prompt.split())
+    if not compact:
+        return "新科研会话"
+    return compact[:28] + ("..." if len(compact) > 28 else "")
+
+
+def run_log_tail(log_path: str, limit: int = 12000) -> str:
+    path = Path(str(log_path or ""))
+    if not path.exists() or not path.is_file():
+        return ""
+    text = path.read_text("utf-8", errors="replace")
+    return text[-limit:].strip()
+
+
+def refresh_chat_state() -> dict:
+    data = load_chat_state()
+    changed = False
+    for session in data["sessions"]:
+        session_messages = session.get("messages")
+        if not isinstance(session_messages, list):
+            session["messages"] = []
+            changed = True
+            continue
+        for message in session_messages:
+            run_id = message.get("run_id")
+            if message.get("role") != "assistant" or not run_id:
+                continue
+            run_record = load_json(STATE_DIR / f"run-{run_id}.json", {})
+            if not run_record:
+                continue
+            status = str(run_record.get("status") or "unknown")
+            log_text = run_log_tail(str(run_record.get("log_path") or message.get("log_path") or ""))
+            previous = dict(message)
+            message.update(
+                {
+                    "status": status,
+                    "runtime": run_record.get("runtime") or message.get("runtime"),
+                    "log_path": run_record.get("log_path") or message.get("log_path"),
+                    "finished_at": run_record.get("finished_at") or message.get("finished_at"),
+                    "exit_code": run_record.get("exit_code", message.get("exit_code")),
+                    "error": run_record.get("error") or "",
+                }
+            )
+            if status == "running":
+                message["content"] = f"任务正在运行：{run_id}"
+            elif status == "done":
+                message["content"] = log_text or f"任务完成：{run_id}"
+            else:
+                error = str(run_record.get("error") or f"任务状态：{status}")
+                message["content"] = "\n\n".join(part for part in [error, log_text] if part)
+            if previous != message:
+                changed = True
+        if session.get("messages"):
+            session["updated_at"] = session["messages"][-1].get("finished_at") or session["messages"][-1].get("created_at") or session.get("updated_at")
+    data["sessions"].sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+    if changed:
+        write_chat_state(data)
+    return data
+
+
+def send_chat_message(payload: dict) -> dict:
+    prompt = str(payload.get("prompt") or "").strip()
+    if not prompt:
+        raise RuntimeError("prompt is required")
+    session_id = str(payload.get("session_id") or "").strip() or uuid.uuid4().hex[:12]
+    runtime = active_runtime(payload)
+    timeout_seconds = int(payload.get("timeout_seconds") or (90 if runtime == "claude_code" else 180))
+
+    data = load_chat_state()
+    session = next((item for item in data["sessions"] if item.get("id") == session_id), None)
+    created_at = now()
+    if not session:
+        session = {
+            "id": session_id,
+            "title": chat_title(prompt),
+            "created_at": created_at,
+            "updated_at": created_at,
+            "messages": [],
+        }
+        data["sessions"].append(session)
+
+    user_message = {
+        "id": uuid.uuid4().hex[:12],
+        "role": "user",
+        "content": prompt,
+        "runtime": runtime,
+        "created_at": now(),
+    }
+    session["messages"].append(user_message)
+
+    try:
+        run_record = start_run(
+            {
+                **payload,
+                "prompt": prompt,
+                "runtime": runtime,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+    except Exception as exc:
+        assistant_message = {
+            "id": uuid.uuid4().hex[:12],
+            "role": "assistant",
+            "content": f"任务未能启动：{exc}",
+            "runtime": runtime,
+            "status": "failed",
+            "run_id": "",
+            "log_path": "",
+            "error": str(exc),
+            "created_at": now(),
+        }
+        session["messages"].append(assistant_message)
+        session["updated_at"] = assistant_message["created_at"]
+        data["sessions"].sort(key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+        write_chat_state(data)
+        return {"session": session, "run": None, "chat": refresh_chat_state(), "error": str(exc)}
+
+    assistant_message = {
+        "id": uuid.uuid4().hex[:12],
+        "role": "assistant",
+        "content": f"任务已启动：{run_record['run_id']}",
+        "runtime": runtime,
+        "status": run_record.get("status"),
+        "run_id": run_record.get("run_id"),
+        "log_path": run_record.get("log_path"),
+        "created_at": now(),
+    }
+    session["messages"].append(assistant_message)
+    session["updated_at"] = assistant_message["created_at"]
+    data["sessions"].sort(key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+    write_chat_state(data)
+    return {"session": session, "run": run_record, "chat": refresh_chat_state()}
+
+
 def save_model_config(payload: dict) -> dict:
     ensure_home()
     mode = str(payload.get("mode") or "local_model")
@@ -1285,6 +1436,8 @@ class StudioHandler(BaseHTTPRequestHandler):
             self.respond(public_model_config())
         elif path == "/api/runs":
             self.respond(list_runs())
+        elif path == "/api/chat/state":
+            self.respond(refresh_chat_state())
         elif path == "/api/security/policy":
             self.respond(SECURITY_POLICY)
         elif path == "/api/claude/status":
@@ -1332,6 +1485,8 @@ class StudioHandler(BaseHTTPRequestHandler):
             self.respond(save_model_config(payload))
         elif path == "/api/run":
             self.respond(start_run(payload))
+        elif path == "/api/chat/send":
+            self.respond(send_chat_message(payload))
         else:
             self.respond({"error": "not found"}, status=404)
 
