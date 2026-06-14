@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.14 - 2026-06-14
+
+- Moved the left navigation collapse control into the sidebar and made collapse controls icon-only, so Workbench/Experiment navigation can collapse without visible Chinese button text.
+- Rebuilt the packaged macOS app after the EvoScientist non-TTY runtime fix and the sidebar collapse UI update.
+
+## 0.1.13 - 2026-06-14
+
+- Fixed the packaged macOS EvoScientist runtime path by launching EvoScientist Core in Studio-controlled non-interactive mode, avoiding terminal-only approval prompts inside the native app.
+- Kept destructive command blocking in Studio before run creation and in EvoScientist Core command execution; `rm -rf` style prompts still do not create runs.
+- Reverified the packaged app with Claude Code, DeepSeek direct mode, chat history refresh/clear, collapsible panels, Core bootstrap from `George3215/MyEvoScientist.git`, and the EvoScientist runtime path.
+
 ## 0.1.12 - 2026-06-14
 
 - Added collapsible non-chat panels for the app sidebar, inspector, chat history, backend status, and current session log.

@@ -1369,6 +1369,9 @@ def start_run(payload: dict) -> dict:
         prompt,
         "--ui",
         "cli",
+        # Studio owns the approval surface; the packaged app has no TTY for
+        # prompt_toolkit approval prompts inside EvoScientist Core.
+        "--auto-mode",
         "--workdir",
         str(workspace),
     ]

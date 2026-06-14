@@ -214,13 +214,15 @@ function applyLayoutState() {
   appShell?.classList.toggle("sidebar-collapsed", state.collapsed.sidebar);
   appShell?.classList.toggle("inspector-collapsed", state.collapsed.inspector);
   if (toggleSidebarButton) {
-    toggleSidebarButton.textContent = state.collapsed.sidebar ? "导航" : "侧栏";
-    toggleSidebarButton.title = state.collapsed.sidebar ? "展开左侧导航" : "折叠左侧导航";
+    toggleSidebarButton.textContent = state.collapsed.sidebar ? "›" : "‹";
+    toggleSidebarButton.title = state.collapsed.sidebar ? "Expand navigation" : "Collapse navigation";
+    toggleSidebarButton.setAttribute("aria-label", toggleSidebarButton.title);
     toggleSidebarButton.setAttribute("aria-expanded", String(!state.collapsed.sidebar));
   }
   if (toggleInspectorButton) {
-    toggleInspectorButton.textContent = state.collapsed.inspector ? "状态" : "状态";
-    toggleInspectorButton.title = state.collapsed.inspector ? "展开右侧状态栏" : "折叠右侧状态栏";
+    toggleInspectorButton.textContent = state.collapsed.inspector ? "‹" : "›";
+    toggleInspectorButton.title = state.collapsed.inspector ? "Expand status panel" : "Collapse status panel";
+    toggleInspectorButton.setAttribute("aria-label", toggleInspectorButton.title);
     toggleInspectorButton.setAttribute("aria-expanded", String(!state.collapsed.inspector));
   }
 }

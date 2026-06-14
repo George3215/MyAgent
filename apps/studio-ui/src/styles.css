@@ -91,17 +91,42 @@ button {
 .brand {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding: 4px 6px 12px;
 }
 
 .app-shell.sidebar-collapsed .brand {
-  justify-content: center;
+  display: grid;
+  justify-items: center;
+  width: 100%;
   padding: 4px 0 10px;
 }
 
-.app-shell.sidebar-collapsed .brand > div:not(.brand-mark) {
+.brand-core {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-shell.sidebar-collapsed .brand-core {
+  justify-content: center;
+}
+
+.app-shell.sidebar-collapsed .brand-text {
   display: none;
+}
+
+.sidebar-toggle {
+  flex: 0 0 auto;
+  width: 34px;
+  min-height: 34px;
+  color: var(--blue);
+}
+
+.app-shell.sidebar-collapsed .sidebar-toggle {
+  width: 36px;
 }
 
 .brand-mark {
@@ -356,6 +381,10 @@ h2 {
 
 .topbar-actions .icon-button {
   width: 58px;
+}
+
+.topbar-actions .panel-toggle {
+  width: 36px;
 }
 
 .panel-toggle {
