@@ -1,26 +1,43 @@
+import { INFO_ADAPTER_VERSION, PROTECTED_UI_BOUNDARY, endpointPath, loadInfoSnapshot } from "./info-adapter.js";
+
 const state = {
   view: "chat",
-  quota: 8640,
-  todayCost: 126,
-  runCost: 18,
-  progress: 72,
-  running: true,
+  quota: null,
+  todayCost: null,
+  runCost: null,
+  quotaPlan: null,
+  progress: null,
   apiOnline: false,
   backend: null,
-  bootstrap: { status: "unknown", phase: "offline" },
-  claude: { status: "unknown", phase: "offline" },
-  ollama: { status: "unknown", phase: "offline", launch_claude: false },
+  bootstrap: {},
+  claude: {},
+  ollama: {},
   runtime: { active_runtime: "claude_code" },
   modelConfig: { configured: false },
   runs: [],
+  experiments: [],
+  analytics: null,
   chatSessions: [],
   activeChatId: "",
+  timelineEvents: [],
+  infoAdapter: {
+    version: INFO_ADAPTER_VERSION,
+    editZone: PROTECTED_UI_BOUNDARY.editZone,
+  },
+  infoErrors: {},
   collapsed: {
     sidebar: false,
     inspector: false,
     history: false,
     backend: false,
     sessionLog: false,
+    inspectorPanels: {
+      quota: false,
+      core: false,
+      task: false,
+      experiment: false,
+      timeline: false,
+    },
   },
 };
 
@@ -58,31 +75,13 @@ function apiBaseLabel() {
   return API_BASE || "same-origin";
 }
 
-const tasks = [
-  { label: "保留 EvoScientist upstream 运行时", status: "done" },
-  { label: "接入 Claude Code + Ollama 代理", status: "done" },
-  { label: "加入删除类命令硬拦截", status: "done" },
-  { label: "生成安装引导和授权中心", status: "done" },
-  { label: "保证 Claude Code 开箱即用", status: "active" },
-  { label: "EvoScientist 作为可选高级安装", status: "todo" },
-];
-
-const events = [
-  { t: "now", title: "runtime", body: "Claude Code 优先通过 Ollama launch 运行，降低地区限制风险" },
-  { t: "now", title: "security", body: "rm -rf、rmdir、del、Remove-Item 等破坏性删除永久拒绝" },
-  { t: "00:18", title: "permission", body: "已加入自动化科研授权边界" },
-  { t: "00:15", title: "installer", body: "新增 git clone 与依赖安装引导" },
-  { t: "00:11", title: "planner-agent", body: "已生成 Studio 三端打包路线" },
-  { t: "00:07", title: "usage", body: "deepseek-v4-flash · 18 credits" },
-];
-
-const installSteps = [
-  ["启动 Studio", "内置前端和本地 sidecar", "ready"],
-  ["安装 Claude Code", "缺失时调用官方安装器", "ready"],
-  ["配置 Ollama 通道", "接国产/本地模型", "ready"],
-  ["填写国产/API 模型", "默认 Ollama 兼容接口", "next"],
-  ["测试 Claude Code", "从 UI 发起任务", "pending"],
-  ["可选 EvoScientist", "高级科研流再安装", "pending"],
+const installStepLabels = [
+  ["Studio API", "本地 sidecar 连接状态"],
+  ["Claude Code", "桌面端 Claude Code 检测状态"],
+  ["模型/API", "当前模型与密钥配置"],
+  ["EvoScientist Core", "后端仓库与虚拟环境状态"],
+  ["安全策略", "危险命令硬拦截策略"],
+  ["最近任务", "最近一次真实运行记录"],
 ];
 
 const permissions = [
@@ -97,49 +96,6 @@ const permissions = [
   ["自动更新", "允许检查 Studio 和兼容层更新，不自动覆盖原项目", "可选", false],
 ];
 
-const metricCards = [
-  ["推送成功率", "94.2%", "+3.1%"],
-  ["实验有效率", "68.5%", "+8.4%"],
-  ["平均成本", "18 credits", "-11%"],
-  ["恢复成功", "31/32", "checkpoint"],
-];
-
-const chartRows = [
-  ["文献检索", 96],
-  ["代码生成", 88],
-  ["实验复现", 72],
-  ["报告产出", 91],
-  ["数据图表", 84],
-];
-
-const experiments = [
-  {
-    status: "Idea",
-    items: [
-      ["自有模型网关", "用户免 token，按套餐扣额度", "商业版"],
-      ["知识库模板市场", "把科研 skill 打包出售", "增长"],
-    ],
-  },
-  {
-    status: "Planned",
-    items: [
-      ["三端安装器", "Windows 先行，macOS/Linux 复用核心", "MVP"],
-      ["授权中心", "自动化操作必须可审计、可撤销", "安全"],
-    ],
-  },
-  {
-    status: "Running",
-    items: [
-      ["Studio 前端原型", "聊天、任务、额度、实验同时展示", "72%"],
-      ["EvoScientist 兼容层", "保留原项目，新增本地 API 适配器", "设计中"],
-    ],
-  },
-  {
-    status: "Verified",
-    items: [["会话恢复方案", "checkpoint + run_events + experiment", "通过"]],
-  },
-];
-
 const artifacts = [
   ["产品需求文档", "Markdown", "outputs/EvoScientist_Studio_产品需求文档.md"],
   ["Studio UI 架构", "Docs", "docs/ARCHITECTURE.md"],
@@ -147,19 +103,6 @@ const artifacts = [
   ["授权与安装流程", "Docs", "docs/ONBOARDING_AND_AUTHORIZATION.md"],
   ["API schema", "JSON", "packages/contracts/studio-api.schema.json"],
   ["macOS 静态构建", "Build", "dist/studio-ui"],
-];
-
-const memories = [
-  ["用户偏好", "普通用户双击即用，不使用终端聊天。"],
-  ["商业约束", "产品方统一购买 token，客户端优先连接托管接口。"],
-  ["兼容原则", "原版 EvoScientist 保留为 core runtime，Studio 只做壳、API 和可视化。"],
-  ["授权原则", "自动化科研前必须展示权限，用户批准后才允许安装、读写和调用模型。"],
-];
-
-const models = [
-  ["Claude Code + Ollama", "kimi-k2.5:cloud", "推荐", "Claude Code 通过 Ollama launch 使用国产/本地模型，降低地区限制。"],
-  ["国产云模型", "glm-5:cloud", "Cloud", "适合不想折腾本地显卡的用户，通过 Ollama 统一入口调用。"],
-  ["本地模型", "qwen3.5", "离线", "适合低成本实验，速度和质量由本机决定。"],
 ];
 
 const viewHost = document.querySelector("#viewHost");
@@ -176,10 +119,84 @@ function h(tag, className, content) {
   return node;
 }
 
+function latestRun() {
+  return Array.isArray(state.runs) && state.runs.length ? state.runs[0] : null;
+}
+
+function hasValue(value) {
+  return value !== undefined && value !== null && value !== "";
+}
+
+function metricText(value, fallback = "--") {
+  return hasValue(value) ? String(value) : fallback;
+}
+
+function receivedText(value) {
+  return hasValue(value) ? String(value) : "暂未接收";
+}
+
+function runTone(status) {
+  const value = String(status || "").toLowerCase();
+  if (value === "done") return "done";
+  if (value === "running") return "active";
+  if (value === "failed" || value === "error" || value === "blocked") return "failed";
+  return "todo";
+}
+
+function taskRows() {
+  const run = latestRun();
+  const security = state.backend?.security || {};
+  return [
+    {
+      label: `Studio API：${state.apiOnline ? "已连接" : "暂未连接"}`,
+      status: state.apiOnline ? "done" : "active",
+    },
+    {
+      label: `Claude Code：${receivedText(state.claude.phase || state.claude.status)}`,
+      status: state.claude.status === "installed" || state.claude.phase === "ready" ? "done" : "active",
+    },
+    {
+      label: `模型/API：${state.modelConfig?.configured ? receivedText(state.modelConfig.model) : "暂未配置"}`,
+      status: state.modelConfig?.configured ? "done" : "active",
+    },
+    {
+      label: `EvoScientist：${receivedText(state.bootstrap.status || state.bootstrap.phase)}`,
+      status: state.bootstrap.status === "installed" ? "done" : "todo",
+    },
+    {
+      label: `安全策略：${receivedText(security.mode)}`,
+      status: security.mode ? "done" : "todo",
+    },
+    {
+      label: `最近任务：${run ? `${run.runtime || "--"} / ${run.status || "--"}` : "暂未接收"}`,
+      status: run ? runTone(run.status) : "todo",
+    },
+  ];
+}
+
+function installRows() {
+  const run = latestRun();
+  const security = state.backend?.security || {};
+  const values = [
+    [state.apiOnline ? "已连接" : "暂未连接", state.apiOnline ? "ready" : "next"],
+    [receivedText(state.claude.status || state.claude.phase), state.claude.status === "installed" ? "ready" : "next"],
+    [state.modelConfig?.configured ? receivedText(state.modelConfig.model) : "暂未配置", state.modelConfig?.configured ? "ready" : "next"],
+    [receivedText(state.bootstrap.status || state.bootstrap.phase), state.bootstrap.status === "installed" ? "ready" : "pending"],
+    [receivedText(security.mode), security.mode ? "ready" : "pending"],
+    [run ? `${run.status || "--"} · ${run.run_id || "--"}` : "暂未接收", run ? runTone(run.status) : "pending"],
+  ];
+  return installStepLabels.map(([title, body], index) => ({
+    title,
+    body,
+    value: values[index][0],
+    status: values[index][1],
+  }));
+}
+
 function renderTasks() {
   const host = document.querySelector("#taskSteps");
   host.replaceChildren();
-  tasks.forEach((task) => {
+  taskRows().forEach((task) => {
     const item = h("li", `step ${task.status}`);
     const mark = h("span", "step-mark");
     const text = h("span", "", task.label);
@@ -191,7 +208,15 @@ function renderTasks() {
 function renderTimeline(extra) {
   const host = document.querySelector("#timeline");
   host.replaceChildren();
-  const list = extra ? [extra, ...events] : events;
+  if (extra) {
+    state.timelineEvents = [{ ...extra, t: extra.t || "now" }, ...state.timelineEvents].slice(0, 12);
+  }
+  const list = state.timelineEvents;
+  if (!list.length) {
+    const empty = h("div", "history-empty", "暂未接收实时事件。");
+    host.append(empty);
+    return;
+  }
   list.forEach((event) => {
     const item = h("div", "timeline-item");
     item.append(h("span", "timeline-time", event.t));
@@ -203,11 +228,37 @@ function renderTimeline(extra) {
 }
 
 function updateNumbers() {
-  document.querySelector("#quotaRemain").textContent = state.quota.toLocaleString();
-  document.querySelector("#todayCost").textContent = state.todayCost.toString();
-  document.querySelector("#runCost").textContent = state.runCost.toString();
-  document.querySelector("#quotaMeter").style.width = `${Math.min(92, 100 - state.quota / 120)}%`;
-  document.querySelector("#experimentMeter").style.width = `${state.progress}%`;
+  const run = latestRun();
+  const quotaNumber = Number(state.quota);
+  const quotaRemain = document.querySelector("#quotaRemain");
+  const todayCost = document.querySelector("#todayCost");
+  const runCost = document.querySelector("#runCost");
+  const planName = document.querySelector("#planName");
+  const serviceStatus = document.querySelector("#serviceStatus");
+  const quotaMeter = document.querySelector("#quotaMeter");
+  const experimentMeter = document.querySelector("#experimentMeter");
+  const experimentRunBadge = document.querySelector("#experimentRunBadge");
+  const experimentTitle = document.querySelector("#experimentTitle");
+  const experimentMeta = document.querySelector("#experimentMeta");
+
+  if (quotaRemain) quotaRemain.textContent = metricText(state.quota);
+  if (todayCost) todayCost.textContent = metricText(state.todayCost);
+  if (runCost) runCost.textContent = metricText(state.runCost);
+  if (planName) planName.textContent = metricText(state.quotaPlan);
+  if (serviceStatus) serviceStatus.textContent = state.apiOnline ? "已连接" : "暂未连接";
+  if (quotaMeter) quotaMeter.style.width = Number.isFinite(quotaNumber) ? `${Math.max(0, Math.min(92, 100 - quotaNumber / 120))}%` : "0%";
+
+  if (experimentRunBadge) experimentRunBadge.textContent = run?.run_id || "--";
+  if (experimentTitle) experimentTitle.textContent = run ? `${run.runtime || "runtime"} / ${run.status || "--"}` : "暂未接收真实任务";
+  if (experimentMeta) experimentMeta.textContent = run ? (run.finished_at || run.started_at || "暂未接收时间") : "暂未接收";
+  if (experimentMeter) experimentMeter.style.width = runProgressWidth(run);
+}
+
+function runProgressWidth(run) {
+  if (!run) return "0%";
+  const progress = Number(run.progress);
+  if (Number.isFinite(progress)) return `${Math.max(0, Math.min(100, progress))}%`;
+  return run.status === "done" ? "100%" : "0%";
 }
 
 function applyLayoutState() {
@@ -225,16 +276,28 @@ function applyLayoutState() {
     toggleInspectorButton.setAttribute("aria-label", toggleInspectorButton.title);
     toggleInspectorButton.setAttribute("aria-expanded", String(!state.collapsed.inspector));
   }
+  document.querySelectorAll("[data-inspector-panel]").forEach((panel) => {
+    const key = panel.getAttribute("data-inspector-panel");
+    const collapsed = Boolean(state.collapsed.inspectorPanels?.[key]);
+    panel.classList.toggle("section-collapsed", collapsed);
+    const button = panel.querySelector("[data-panel-toggle]");
+    if (button) {
+      button.textContent = collapsed ? "›" : "⌄";
+      button.title = collapsed ? "Open" : "Close";
+      button.setAttribute("aria-label", button.title);
+      button.setAttribute("aria-expanded", String(!collapsed));
+    }
+  });
 }
 
 async function apiGet(path) {
-  const response = await fetch(`${API_BASE}${path}`, { headers: { Accept: "application/json" } });
+  const response = await fetch(apiUrl(path), { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`${path} ${response.status}`);
   return response.json();
 }
 
 async function apiPost(path, payload) {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload || {}),
@@ -244,25 +307,28 @@ async function apiPost(path, payload) {
   return data;
 }
 
+function apiUrl(path) {
+  if (/^https?:\/\//i.test(String(path))) return path;
+  return `${API_BASE}${path}`;
+}
+
 async function refreshBackendState({ silent = false } = {}) {
   try {
-    const data = await apiGet("/api/health");
-    state.apiOnline = true;
-    state.backend = data;
-    state.bootstrap = data.bootstrap || state.bootstrap;
-    state.claude = data.claude || state.claude;
-    state.ollama = data.ollama || state.ollama;
-    state.runtime = data.runtime || state.runtime;
-    state.modelConfig = data.model || state.modelConfig;
-    const runData = await apiGet("/api/runs");
-    state.runs = Array.isArray(runData.runs) ? runData.runs : [];
-    const chatData = await apiGet("/api/chat/state");
-    applyChatState(chatData);
-    renderTimeline({
-      t: "now",
-      title: "studio-api",
-      body: `后端已连接 · Claude ${state.claude.status || "unknown"} · Ollama ${state.ollama.status || "unknown"} · runtime ${state.runtime.active_runtime || "evoscientist"}`,
-    });
+    const snapshot = await loadInfoSnapshot({ apiGet });
+    applyInfoSnapshot(snapshot);
+    if (snapshot.apiOnline) {
+      renderTimeline({
+        t: "now",
+        title: "info adapter",
+        body: `v${state.infoAdapter.version} · 后端已连接 · Claude ${displayValue(state.claude.status || state.claude.phase)} · Ollama ${displayValue(state.ollama.status || state.ollama.phase)} · runtime ${displayValue(state.runtime.active_runtime)}`,
+      });
+    } else if (!silent) {
+      renderTimeline({
+        t: "now",
+        title: "studio-api",
+        body: `后端暂未连接：${snapshot.errors?.health || "暂未接收"}`,
+      });
+    }
   } catch (error) {
     state.apiOnline = false;
     if (!silent) {
@@ -274,6 +340,32 @@ async function refreshBackendState({ silent = false } = {}) {
   if (["install", "settings", "chat", "permissions"].includes(state.view)) {
     renderView(state.view);
   }
+}
+
+function applyInfoSnapshot(snapshot) {
+  state.apiOnline = Boolean(snapshot.apiOnline);
+  state.backend = snapshot.backend || null;
+  state.bootstrap = snapshot.bootstrap || {};
+  state.claude = snapshot.claude || {};
+  state.ollama = snapshot.ollama || {};
+  state.runtime = {
+    active_runtime: "claude_code",
+    ...(snapshot.runtime || {}),
+  };
+  state.modelConfig = snapshot.modelConfig || {};
+  state.runs = Array.isArray(snapshot.runs) ? snapshot.runs : [];
+  state.experiments = Array.isArray(snapshot.experiments) ? snapshot.experiments : [];
+  state.analytics = snapshot.analytics || null;
+  state.quota = snapshot.quota?.remaining ?? null;
+  state.todayCost = snapshot.quota?.todayCost ?? null;
+  state.runCost = snapshot.quota?.runCost ?? null;
+  state.quotaPlan = snapshot.quota?.planName ?? null;
+  state.infoAdapter = {
+    version: snapshot.adapterVersion || INFO_ADAPTER_VERSION,
+    editZone: snapshot.boundary?.editZone || PROTECTED_UI_BOUNDARY.editZone,
+  };
+  state.infoErrors = snapshot.errors || {};
+  applyChatState({ sessions: Array.isArray(snapshot.chatSessions) ? snapshot.chatSessions : [] });
 }
 
 function applyChatState(chatData) {
@@ -289,19 +381,31 @@ function applyChatState(chatData) {
 function updateBackendBadges() {
   const coreBadge = document.querySelector("#coreStateBadge");
   if (coreBadge) {
-    coreBadge.textContent = state.apiOnline ? state.bootstrap.status || "online" : "离线";
+    coreBadge.textContent = state.apiOnline ? metricText(state.bootstrap.status || state.bootstrap.phase) : "暂未连接";
     coreBadge.classList.toggle("active", state.apiOnline && state.bootstrap.status === "installed");
   }
   const taskState = document.querySelector("#taskState");
   if (taskState) {
-    taskState.textContent = state.apiOnline ? "已连接" : "等待后端";
-    taskState.classList.toggle("active", state.apiOnline);
+    const run = latestRun();
+    taskState.textContent = run ? metricText(run.status) : "暂未接收";
+    taskState.classList.toggle("active", Boolean(run && run.status === "running"));
   }
+  const footerClaude = document.querySelector("#footerClaudeStatus");
+  if (footerClaude) {
+    footerClaude.textContent = state.apiOnline ? `CLAUDE ${metricText(state.claude.phase || state.claude.status)}` : "CLAUDE --";
+    footerClaude.classList.toggle("ok", state.claude.phase === "ready" || state.claude.status === "installed");
+  }
+  const footerSecurity = document.querySelector("#footerSecurityStatus");
+  if (footerSecurity) {
+    footerSecurity.textContent = state.backend?.security?.mode ? "SAFE ON" : "SAFE --";
+  }
+  updateNumbers();
+  renderTasks();
 }
 
 async function refreshChatState({ notify = false } = {}) {
   try {
-    const chatData = await apiGet("/api/chat/state");
+    const chatData = await apiGet(endpointPath("chatState"));
     applyChatState(chatData);
     renderSidebarSessions();
     if (state.view === "chat") renderView("chat");
@@ -351,7 +455,7 @@ function chatSessionStatusClass(session) {
   return "paused";
 }
 
-function displayValue(value, fallback = "未配置") {
+function displayValue(value, fallback = "--") {
   if (value === undefined || value === null || value === "") return fallback;
   return String(value);
 }
@@ -366,7 +470,7 @@ function statusTone(status) {
 
 function statusToken(label, status) {
   const safeLabel = escapeHtml(label);
-  const safeStatus = escapeHtml(displayValue(status, "unknown"));
+  const safeStatus = escapeHtml(displayValue(status));
   return `<span class="status-token ${statusTone(status)}" title="${safeLabel}: ${safeStatus}"><b>${safeLabel}</b><span>${safeStatus}</span></span>`;
 }
 
@@ -401,34 +505,36 @@ function backendConsole({ compact = false, collapsible = false, collapsed = fals
   const recentRuns = Array.isArray(state.runs) ? state.runs.slice(0, 3) : [];
   const wrap = h("section", `backend-console wide-panel ${compact ? "compact" : ""} ${collapsed ? "collapsed" : ""}`);
   const toggleButton = collapsible
-    ? `<button class="icon-button inline-toggle" id="toggleBackendPanel" type="button" title="${collapsed ? "展开后端状态" : "折叠后端状态"}">${collapsed ? "展开" : "折叠"}</button>`
+    ? `<button class="icon-button inline-toggle" id="toggleBackendPanel" type="button" title="${collapsed ? "Open backend status" : "Close backend status"}">${collapsed ? "›" : "⌄"}</button>`
     : "";
   wrap.innerHTML = `
     <div class="panel-header">
       <h2>Claude Code / EvoScientist 后端</h2>
       <div class="panel-actions">
-        <span class="panel-badge ${state.apiOnline ? "active" : ""}">${state.apiOnline ? "studio-api online" : "studio-api offline"}</span>
+        <span class="panel-badge ${state.apiOnline ? "active" : ""}">${state.apiOnline ? "studio-api online" : "studio-api --"}</span>
         ${toggleButton}
       </div>
     </div>
     ${collapsed ? `
       <div class="collapsed-summary">
         ${statusToken("api", apiBaseLabel())}
-        ${statusToken("runtime", runtime.active_runtime || "claude_code")}
-        ${statusToken("model", model.model || "kimi-k2.5:cloud")}
+        ${statusToken("info", state.infoAdapter.version)}
+        ${statusToken("runtime", runtime.active_runtime || "--")}
+        ${statusToken("model", model.model || "--")}
       </div>
     ` : `
     <div class="runtime-strip">
       ${statusToken("api", apiBaseLabel())}
-      ${statusToken("runtime", runtime.active_runtime || "claude_code")}
-      ${statusToken("strategy", runtime.bootstrap_strategy || "claude_code_first")}
-      ${statusToken("model", model.model || "kimi-k2.5:cloud")}
-      ${statusToken("key", model.api_key_set ? "saved" : "not saved")}
+      ${statusToken("info", state.infoAdapter.version)}
+      ${statusToken("runtime", runtime.active_runtime || "--")}
+      ${statusToken("strategy", runtime.bootstrap_strategy || "--")}
+      ${statusToken("model", model.model || "--")}
+      ${statusToken("key", model.configured ? (model.api_key_set ? "saved" : "not saved") : "--")}
     </div>
     <div class="service-grid">
       ${serviceCard({
         title: "Claude Code",
-        status: claude.phase === "auth_required" ? "auth_required" : claude.status || "unknown",
+        status: claude.phase === "auth_required" ? "auth_required" : claude.status,
         meta: "负责首装、修复、代码科研任务和 EvoScientist 高级安装代理。",
         rows: [
           ["阶段", claude.phase],
@@ -441,17 +547,17 @@ function backendConsole({ compact = false, collapsible = false, collapsed = fals
       })}
       ${serviceCard({
         title: "Ollama 通道",
-        status: ollama.status || "unknown",
+        status: ollama.status,
         meta: "用于把 Claude Code 模型请求接到国产/本地模型，降低地区限制风险。",
         rows: [
-          ["API Base", ollama.base_url || model.api_base || "http://localhost:11434"],
-          ["launch claude", ollama.launch_claude ? "ready" : "not ready"],
+          ["API Base", ollama.base_url || model.api_base],
+          ["launch claude", hasValue(ollama.launch_claude) ? (ollama.launch_claude ? "ready" : "not ready") : ""],
           ["日志", ollama.log],
         ],
       })}
       ${serviceCard({
         title: "EvoScientist Core",
-        status: core.status || "unknown",
+        status: core.status,
         meta: "保留 upstream 项目，Studio 通过本地 adapter/API 管理安装和运行。",
         rows: [
           ["阶段", core.phase],
@@ -461,26 +567,26 @@ function backendConsole({ compact = false, collapsible = false, collapsed = fals
       })}
       ${serviceCard({
         title: "安全闸门",
-        status: security.mode || "hard_block_destructive_commands",
+        status: security.mode,
         tone: "danger",
         meta: "删除类和系统级危险命令永久拒绝，授权也不能覆盖。",
         rows: [
-          ["Shell", security.shell_execution || "blocked"],
-          ["可覆盖", security.user_approval_can_override === false ? "false" : displayValue(security.user_approval_can_override, "false")],
-          ["禁止", neverAllow.slice(0, 8).join(", ") || "rm, sudo, dd, chmod"],
+          ["Shell", security.shell_execution],
+          ["可覆盖", security.user_approval_can_override === false ? "false" : displayValue(security.user_approval_can_override)],
+          ["禁止", neverAllow.slice(0, 8).join(", ") || "--"],
         ],
       })}
     </div>
     <div class="run-feed">
       <div class="run-feed-head">
         <strong>最近真实任务</strong>
-        <span>${recentRuns.length ? `${recentRuns.length} runs` : "no runs yet"}</span>
+        <span>${recentRuns.length ? `${recentRuns.length} runs` : "暂未接收"}</span>
       </div>
       <div class="run-list">
         ${recentRuns.length ? recentRuns.map((run) => `
           <div class="run-item ${statusTone(run.status)}">
             <span>${escapeHtml(run.runtime || "runtime")}</span>
-            <strong>${escapeHtml(run.status || "unknown")}</strong>
+            <strong>${escapeHtml(displayValue(run.status))}</strong>
             <em>${escapeHtml(run.exit_code === undefined ? run.run_id || "" : `exit ${run.exit_code}`)}</em>
             <small title="${escapeHtml(run.error || run.prompt || "")}">${escapeHtml(run.error || run.prompt || "")}</small>
           </div>
@@ -511,14 +617,14 @@ function chatView() {
   const history = h("aside", `conversation-history ${state.collapsed.history ? "collapsed" : ""}`);
   history.innerHTML = state.collapsed.history ? `
     <div class="history-rail">
-      <button class="rail-button" id="toggleHistory" type="button" title="展开会话历史">历史</button>
+      <button class="rail-button" id="toggleHistory" type="button" title="Open history">◷</button>
       <button class="rail-button" id="newChat" type="button" title="新建会话">+</button>
     </div>
   ` : `
     <div class="history-head">
       <strong>会话历史</strong>
       <div class="history-head-actions">
-        <button class="icon-button inline-toggle" id="toggleHistory" type="button" title="折叠会话历史">折叠</button>
+        <button class="icon-button inline-toggle" id="toggleHistory" type="button" title="Close history">‹</button>
         <button class="icon-button" id="newChat" type="button" title="新建会话">+</button>
       </div>
     </div>
@@ -545,8 +651,8 @@ function chatView() {
       <p>这里现在是真实对话窗口。发送消息后，Studio 会调用本地 studio-api，启动 Claude Code 或 EvoScientist Core，并把 run 结果写入历史。</p>
       <div class="tool-strip">
         <button title="后端状态" type="button">API ${state.apiOnline ? "ONLINE" : "OFFLINE"}</button>
-        <button title="Claude Code" type="button">CLAUDE ${state.claude.phase || state.claude.status || "UNKNOWN"}</button>
-        <button title="安装状态" type="button">CORE ${state.bootstrap.status || "UNKNOWN"}</button>
+        <button title="Claude Code" type="button">CLAUDE ${displayValue(state.claude.phase || state.claude.status)}</button>
+        <button title="安装状态" type="button">CORE ${displayValue(state.bootstrap.status)}</button>
       </div>
     </div>
   `;
@@ -559,12 +665,12 @@ function chatView() {
       <option value="claude_code" ${runtime === "claude_code" ? "selected" : ""}>Claude Code</option>
       <option value="evoscientist" ${runtime === "evoscientist" ? "selected" : ""}>EvoScientist</option>
     </select>
-    <input aria-label="message" placeholder="输入科研任务、实验假设或文件分析需求" />
+    <textarea class="prompt-box" aria-label="message" rows="2" placeholder="输入科研任务、实验假设或文件分析需求"></textarea>
     <button class="primary-button small" type="submit">发送</button>
   `;
   composer.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const input = composer.querySelector("input");
+    const input = composer.querySelector("textarea");
     const runtimeSelect = composer.querySelector("#chatRuntime");
     const prompt = input.value.trim();
     if (!prompt) return;
@@ -584,7 +690,7 @@ function chatView() {
       if (response.error) {
         renderTimeline({ t: "now", title: "chat error", body: response.error });
       } else {
-        renderTimeline({ t: "now", title: "chat run", body: `已启动真实任务：${response.run?.run_id || "unknown"}` });
+        renderTimeline({ t: "now", title: "chat run", body: `已启动真实任务：${displayValue(response.run?.run_id)}` });
       }
       renderSidebarSessions();
       renderView("chat");
@@ -604,12 +710,12 @@ function chatView() {
       <strong>当前会话日志</strong>
       <div class="dock-actions">
         <span>${escapeHtml(session?.title || "新会话")}</span>
-        <button class="icon-button inline-toggle" id="toggleSessionLog" type="button" title="${state.collapsed.sessionLog ? "展开当前日志" : "折叠当前日志"}">${state.collapsed.sessionLog ? "展开" : "折叠"}</button>
+        <button class="icon-button inline-toggle" id="toggleSessionLog" type="button" title="${state.collapsed.sessionLog ? "Open session log" : "Close session log"}">${state.collapsed.sessionLog ? "⌃" : "⌄"}</button>
       </div>
     </div>
     ${state.collapsed.sessionLog ? "" : latestAssistant ? `
-      <div class="artifact-row"><span>Runtime</span><small>${escapeHtml(latestAssistant.runtime || "unknown")}</small></div>
-      <div class="artifact-row"><span>Status</span><small>${escapeHtml(latestAssistant.status || "unknown")}</small></div>
+      <div class="artifact-row"><span>Runtime</span><small>${escapeHtml(displayValue(latestAssistant.runtime))}</small></div>
+      <div class="artifact-row"><span>Status</span><small>${escapeHtml(displayValue(latestAssistant.status))}</small></div>
       <div class="artifact-row"><span>Run ID</span><small>${escapeHtml(latestAssistant.run_id || "")}</small></div>
       <pre class="log-preview">${escapeHtml(latestAssistant.content || "")}</pre>
     ` : `<div class="history-empty">还没有真实 run。发送消息后这里会显示模型输出和错误日志。</div>`}
@@ -659,16 +765,33 @@ function selectOption(value, label, current) {
   return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
 }
 
+function modelCardsHtml() {
+  const config = state.modelConfig || {};
+  const cards = [
+    ["Provider", receivedText(config.provider), config.configured ? "configured" : "--"],
+    ["Model", receivedText(config.model), config.configured ? "active" : "--"],
+    ["Claude 通道", receivedText(config.claude_transport), config.configured ? "ready" : "--"],
+  ];
+  return cards.map(([name, value, tag]) => `
+    <article class="model-card ${tag === "active" ? "selected" : ""}">
+      <strong>${escapeHtml(name)}</strong>
+      <span>${escapeHtml(value)}</span>
+      <p>${escapeHtml(config.configured ? "来自 studio-api 当前模型配置。" : "暂未接收模型配置。")}</p>
+      <em>${escapeHtml(tag)}</em>
+    </article>
+  `).join("");
+}
+
 function modelConfigPanel() {
   const panel = h("section", "settings-panel cyber-config");
   const config = state.modelConfig || {};
-  const mode = config.mode || "local_model";
-  const provider = config.provider || "ollama";
-  const transport = config.claude_transport || "ollama";
+  const mode = config.mode || "";
+  const provider = config.provider || "";
+  const transport = config.claude_transport || "";
   const anthropicBase =
     config.anthropic_base_url ||
-    (provider === "deepseek"
-      ? `${(config.api_base || "https://api.deepseek.com").replace(/\/+$/, "")}/anthropic`
+    (provider === "deepseek" && config.api_base
+      ? `${(config.api_base || "").replace(/\/+$/, "")}/anthropic`
       : "");
   panel.innerHTML = `
     <div class="panel-header">
@@ -690,25 +813,17 @@ function modelConfigPanel() {
         ["ollama", "ollama launch claude"],
         ["direct", "direct claude"],
       ].map(([value, label]) => selectOption(value, label, transport)).join("")}</select></label>
-      <label><span>API Base</span><input id="configApiBase" value="${escapeHtml(config.api_base || "http://localhost:11434")}" /></label>
+      <label><span>API Base</span><input id="configApiBase" value="${escapeHtml(config.api_base || "")}" placeholder="https://api.example.com" /></label>
       <label><span>Claude Anthropic Base</span><input id="configAnthropicBase" value="${escapeHtml(anthropicBase)}" placeholder="DeepSeek: https://api.deepseek.com/anthropic" /></label>
       <label><span>API Key / Token</span><input id="configApiKey" value="" placeholder="${config.api_key_set ? "已保存，留空则不覆盖" : "Ollama 可填 ollama，云模型填 token"}" /></label>
-      <label><span>Claude 模型</span><input id="configModel" value="${escapeHtml(config.model || "kimi-k2.5:cloud")}" /></label>
+      <label><span>Claude 模型</span><input id="configModel" value="${escapeHtml(config.model || "")}" placeholder="model id" /></label>
     </div>
     <div class="model-grid compact">
-      ${models.map(([name, id, tag, body], index) => `
-        <label class="model-card ${index === 0 ? "selected" : ""}">
-          <input type="radio" name="model" ${index === 0 ? "checked" : ""} />
-          <strong>${name}</strong>
-          <span>${id}</span>
-          <p>${body}</p>
-          <em>${tag}</em>
-        </label>
-      `).join("")}
+      ${modelCardsHtml()}
     </div>
     <div class="action-row">
       <button class="primary-button small" id="saveModelConfig" type="button">保存并连接</button>
-      <span class="status-copy">模型配置会写入 studio-api，并供 Claude Code / EvoScientist 共用。</span>
+      <span class="status-copy">当前配置：${escapeHtml(config.configured ? "已接收" : "暂未接收")}</span>
     </div>
   `;
   return panel;
@@ -716,12 +831,32 @@ function modelConfigPanel() {
 
 function experimentsView() {
   const board = h("div", "kanban");
-  experiments.forEach((column) => {
+  const groups = [
+    ["running", "Running"],
+    ["done", "Done"],
+    ["failed", "Failed"],
+    ["other", "Other"],
+  ];
+  const runs = Array.isArray(state.runs) ? state.runs : [];
+  const experiments = Array.isArray(state.experiments) && state.experiments.length ? state.experiments : runs;
+  groups.forEach(([key, label]) => {
     const col = h("section", "kanban-column");
-    col.append(h("h2", "", column.status));
-    column.items.forEach(([title, desc, tag]) => {
+    col.append(h("h2", "", label));
+    const items = experiments.filter((run) => {
+      if (key === "other") return !["running", "done", "failed"].includes(String(run.status || ""));
+      return run.status === key;
+    });
+    if (!items.length) {
+      const empty = h("div", "history-empty", "暂未接收");
+      col.append(empty);
+    }
+    items.forEach((run) => {
       const card = h("article", "experiment-card");
-      card.innerHTML = `<div class="experiment-title">${title}</div><p>${desc}</p><span class="experiment-tag">${tag}</span>`;
+      card.innerHTML = `
+        <div class="experiment-title">${escapeHtml(run.title || run.prompt || run.run_id || "--")}</div>
+        <p>${escapeHtml(run.started_at || run.updated_at || run.created_at || "暂未接收时间")}</p>
+        <span class="experiment-tag">${escapeHtml(run.runtime || "--")} · ${escapeHtml(run.run_id || "--")}</span>
+      `;
       col.append(card);
     });
     board.append(col);
@@ -752,35 +887,35 @@ function installView() {
   overview.innerHTML = `
     <div class="panel-header">
       <h2>一键安装流程</h2>
-      <span class="panel-badge active">${state.apiOnline ? status.status || "online" : "api offline"}</span>
+      <span class="panel-badge active">${state.apiOnline ? displayValue(status.status || status.phase) : "--"}</span>
     </div>
     <div class="install-flow">
-      ${installSteps.map(([title, body, status], index) => `
-        <div class="setup-step ${status}">
+      ${installRows().map((step, index) => `
+        <div class="setup-step ${step.status}">
           <span>${index + 1}</span>
-          <div><strong>${title}</strong><p>${body}</p></div>
+          <div><strong>${escapeHtml(step.title)}</strong><p>${escapeHtml(step.body)} · ${escapeHtml(step.value)}</p></div>
         </div>
       `).join("")}
     </div>
     <div class="split-grid">
       <div class="info-block">
         <strong>Claude Code</strong>
-        <p>${claude.status || "unknown"} · ${claude.version || claude.phase || "waiting"}${claude.path ? ` · ${claude.path}` : ""}</p>
+        <p>${displayValue(claude.status)} · ${displayValue(claude.version || claude.phase)}${claude.path ? ` · ${claude.path}` : ""}</p>
       </div>
       <div class="info-block">
         <strong>Ollama</strong>
-        <p>${ollama.status || "unknown"} · ${ollama.version || ollama.phase || "waiting"} · launch claude: ${ollama.launch_claude ? "ready" : "not checked"}</p>
+        <p>${displayValue(ollama.status)} · ${displayValue(ollama.version || ollama.phase)} · launch claude: ${hasValue(ollama.launch_claude) ? (ollama.launch_claude ? "ready" : "not ready") : "--"}</p>
       </div>
       <div class="info-block">
         <strong>EvoScientist Core</strong>
-        <p>${status.status || "unknown"} · ${status.phase || "waiting"}${status.core_dir ? ` · ${status.core_dir}` : ""}</p>
+        <p>${displayValue(status.status)} · ${displayValue(status.phase)}${status.core_dir ? ` · ${status.core_dir}` : ""}</p>
       </div>
     </div>
     <div class="action-row">
       <button class="primary-button small" id="installClaude" type="button" ${claude.status === "installed" || !state.apiOnline ? "disabled" : ""}>${claudeButtonText}</button>
       <button class="primary-button small" id="testClaudeRuntime" type="button">测试 Claude Code</button>
       <button class="icon-button wide" id="installOllama" type="button" title="${ollamaButtonText}" ${ollama.status === "installed" || !state.apiOnline ? "disabled" : ""}>OL</button>
-      <span class="status-copy">首装目标：Claude Code 可从 UI 运行 · ${status.phase || "offline"}</span>
+      <span class="status-copy">首装目标：Claude Code 可从 UI 运行 · ${displayValue(status.phase)}</span>
     </div>
     <details class="advanced-actions">
       <summary>高级 EvoScientist 安装</summary>
@@ -808,9 +943,9 @@ function installView() {
       </div>
     </div>
     <div class="code-row">
-      <span class="code-pill">ollama launch claude --model kimi-k2.5:cloud</span>
-      <span class="code-pill">runtime: Claude Code</span>
-      <span class="code-pill">optional: install EvoScientist</span>
+      <span class="code-pill">model: ${escapeHtml(displayValue(state.modelConfig?.model))}</span>
+      <span class="code-pill">runtime: ${escapeHtml(displayValue(state.runtime?.active_runtime))}</span>
+      <span class="code-pill">core: ${escapeHtml(displayValue(state.bootstrap?.status))}</span>
     </div>
   `;
 
@@ -848,16 +983,18 @@ function permissionsView() {
     wrap.append(card);
   });
   const audit = h("section", "wide-panel permission-audit");
+  const security = state.backend?.security || {};
+  const run = latestRun();
   audit.innerHTML = `
     <div class="panel-header">
       <h2>授权后记录</h2>
-      <span class="panel-badge active">audit log</span>
+      <span class="panel-badge ${security.mode ? "active" : ""}">${security.mode ? "audit log" : "--"}</span>
     </div>
     <div class="table-head compact"><span>动作</span><span>范围</span><span>状态</span></div>
-    <div class="table-row compact"><span>git clone</span><span>安装目录</span><span>待批准</span></div>
-    <div class="table-row compact"><span>model call</span><span>托管网关</span><span>已限制额度</span></div>
-    <div class="table-row compact"><span>workspace write</span><span>用户选择目录</span><span>可撤销</span></div>
-    <div class="table-row compact"><span>rm -rf / 删除类命令</span><span>全部目录</span><span>永久拒绝</span></div>
+    <div class="table-row compact"><span>studio-api</span><span>localhost</span><span>${state.apiOnline ? "已连接" : "暂未连接"}</span></div>
+    <div class="table-row compact"><span>model config</span><span>${escapeHtml(state.modelConfig?.provider || "--")}</span><span>${state.modelConfig?.configured ? "已接收" : "暂未接收"}</span></div>
+    <div class="table-row compact"><span>latest run</span><span>${escapeHtml(run?.runtime || "--")}</span><span>${escapeHtml(run?.status || "暂未接收")}</span></div>
+    <div class="table-row compact"><span>rm -rf / 删除类命令</span><span>全部目录</span><span>${escapeHtml(security.mode || "暂未接收")}</span></div>
   `;
   wrap.append(audit);
   return wrap;
@@ -866,26 +1003,44 @@ function permissionsView() {
 function analyticsView() {
   const wrap = h("div", "analytics-layout");
   const stats = h("section", "stat-grid");
-  metricCards.forEach(([label, value, note]) => {
+  const runs = Array.isArray(state.runs) ? state.runs : [];
+  const analytics = state.analytics || {};
+  const total = runs.length;
+  const done = runs.filter((run) => run.status === "done").length;
+  const failed = runs.filter((run) => run.status === "failed").length;
+  const running = runs.filter((run) => run.status === "running").length;
+  const successRate = total ? `${Math.round((done / total) * 100)}%` : "--";
+  const cards = [
+    ["真实任务数", total ? String(total) : "--", total ? "from /api/runs" : "暂未接收"],
+    ["成功率", successRate, total ? `${done}/${total}` : "暂未接收"],
+    ["失败任务", total ? String(failed) : "--", total ? "from /api/runs" : "暂未接收"],
+    ["运行中", total ? String(running) : "--", total ? "from /api/runs" : "暂未接收"],
+  ];
+  cards.forEach(([label, value, note]) => {
     const card = h("article", "stat-card");
     card.innerHTML = `<span>${label}</span><strong>${value}</strong><small>${note}</small>`;
     stats.append(card);
   });
+  const chartRows = total ? [
+    ["done", Math.round((done / total) * 100)],
+    ["failed", Math.round((failed / total) * 100)],
+    ["running", Math.round((running / total) * 100)],
+  ] : [];
 
   const chart = h("section", "wide-panel");
   chart.innerHTML = `
     <div class="panel-header">
-      <h2>自动化科研效果</h2>
-      <span class="panel-badge">last 30 runs</span>
+      <h2>真实运行分布</h2>
+      <span class="panel-badge">${total ? `${total} runs` : "--"}</span>
     </div>
     <div class="bar-chart">
-      ${chartRows.map(([label, value]) => `
+      ${chartRows.length ? chartRows.map(([label, value]) => `
         <div class="bar-row">
           <span>${label}</span>
           <div class="bar-track"><i style="width:${value}%"></i></div>
           <strong>${value}%</strong>
         </div>
-      `).join("")}
+      `).join("") : `<div class="history-empty">暂未接收真实运行数据。</div>`}
     </div>
   `;
 
@@ -896,10 +1051,10 @@ function analyticsView() {
       <span class="panel-badge">roadmap</span>
     </div>
     <div class="split-grid">
-      <div class="info-block"><strong>推送成功率</strong><p>统计论文、代码、报告、图表等产物的生成与推送结果。</p></div>
-      <div class="info-block"><strong>实验效果</strong><p>记录每次实验假设、变量、结果、评价分数和复现实验状态。</p></div>
-      <div class="info-block"><strong>成本曲线</strong><p>按模型、任务、用户、项目拆分 token 或 credits 消耗。</p></div>
-      <div class="info-block"><strong>失败原因</strong><p>聚合 API 错误、依赖安装失败、权限拒绝和代码执行失败。</p></div>
+      <div class="info-block"><strong>推送成功率</strong><p>${escapeHtml(receivedText(analytics.pushSuccessRate))}</p></div>
+      <div class="info-block"><strong>实验效果</strong><p>${escapeHtml(receivedText(analytics.experimentScore))}</p></div>
+      <div class="info-block"><strong>成本曲线</strong><p>${escapeHtml(hasValue(state.quota) || hasValue(state.todayCost) ? `quota ${displayValue(state.quota)} / today ${displayValue(state.todayCost)}` : "暂未接收真实额度接口数据。")}</p></div>
+      <div class="info-block"><strong>失败原因</strong><p>${escapeHtml(analytics.failureReasons?.[0] || latestRun()?.error || "暂未接收失败样本。")}</p></div>
     </div>
   `;
 
@@ -920,18 +1075,16 @@ function artifactsView() {
 
 function memoryView() {
   const grid = h("div", "memory-grid");
-  memories.forEach(([title, body]) => {
-    const card = h("article", "memory-card");
-    card.innerHTML = `<strong>${title}</strong><p>${body}</p><button title="审核记忆">审核</button>`;
-    grid.append(card);
-  });
+  const card = h("article", "memory-card");
+  card.innerHTML = `<strong>持久记忆</strong><p>暂未接收持久记忆数据。</p><button title="Review memory">--</button>`;
+  grid.append(card);
   return grid;
 }
 
 function settingsView() {
   const wrap = h("div", "settings-layout");
   const runtimePanel = h("section", "wide-panel");
-  const activeRuntime = state.runtime.active_runtime || "evoscientist";
+  const activeRuntime = state.runtime.active_runtime || "";
   runtimePanel.innerHTML = `
     <div class="panel-header">
       <h2>科研运行时</h2>
@@ -941,14 +1094,14 @@ function settingsView() {
       <label class="model-card ${activeRuntime === "claude_code" ? "selected" : ""}">
         <input type="radio" name="runtimeMode" value="claude_code" ${activeRuntime === "claude_code" ? "checked" : ""} />
         <strong>Claude Code + Ollama 科研</strong>
-        <span>Claude ${state.claude.status || "unknown"} · Ollama ${state.ollama.status || "unknown"}</span>
+        <span>Claude ${displayValue(state.claude.status)} · Ollama ${displayValue(state.ollama.status)}</span>
         <p>适合安装、修复、代码科研、复杂工程任务和多步自动化。模型调用优先通过 Ollama，便于接国产/本地模型。</p>
         <em>ollama launch</em>
       </label>
       <label class="model-card ${activeRuntime === "evoscientist" ? "selected" : ""}">
         <input type="radio" name="runtimeMode" value="evoscientist" ${activeRuntime === "evoscientist" ? "checked" : ""} />
         <strong>EvoScientist 科研</strong>
-        <span>${state.bootstrap.status || "unknown"} · ${state.bootstrap.phase || "waiting"}</span>
+        <span>${displayValue(state.bootstrap.status)} · ${displayValue(state.bootstrap.phase)}</span>
         <p>适合沿用 EvoScientist 原生科研工作流、checkpoint 和后续 run events 可视化。Studio 保留 upstream，不改原项目。</p>
         <em>core runtime</em>
       </label>
@@ -962,19 +1115,11 @@ function settingsView() {
   const modelPanel = h("section", "wide-panel");
   modelPanel.innerHTML = `
     <div class="panel-header">
-      <h2>模型选择</h2>
-      <span class="panel-badge active">visual config</span>
+      <h2>当前模型状态</h2>
+      <span class="panel-badge ${state.modelConfig?.configured ? "active" : ""}">${state.modelConfig?.configured ? "已接收" : "--"}</span>
     </div>
     <div class="model-grid">
-      ${models.map(([name, id, tag, body], index) => `
-        <label class="model-card ${index === 0 ? "selected" : ""}">
-          <input type="radio" name="model" ${index === 0 ? "checked" : ""} />
-          <strong>${name}</strong>
-          <span>${id}</span>
-          <p>${body}</p>
-          <em>${tag}</em>
-        </label>
-      `).join("")}
+      ${modelCardsHtml()}
     </div>
   `;
 
@@ -987,10 +1132,10 @@ function settingsView() {
       <span class="panel-badge active">local api</span>
     </div>
     <div class="split-grid">
-      <div class="info-block"><strong>Claude Code</strong><p>${state.claude.path || "等待安装"} · ${state.claude.version || state.claude.phase || "not checked"}</p></div>
-      <div class="info-block"><strong>Ollama</strong><p>${state.ollama.path || "等待安装"} · launch claude: ${state.ollama.launch_claude ? "ready" : "not ready"}</p></div>
-      <div class="info-block"><strong>模型通道</strong><p>默认通过 Ollama Anthropic-compatible API，让 Claude Code 使用国产或本地模型。</p></div>
-      <div class="info-block"><strong>实验数据</strong><p>实验假设、变量、结果、评分和产物路径统一进入 analytics snapshot。</p></div>
+      <div class="info-block"><strong>Claude Code</strong><p>${displayValue(state.claude.path)} · ${displayValue(state.claude.version || state.claude.phase)}</p></div>
+      <div class="info-block"><strong>Ollama</strong><p>${state.ollama.path || "等待安装"} · launch claude: ${hasValue(state.ollama.launch_claude) ? (state.ollama.launch_claude ? "ready" : "not ready") : "--"}</p></div>
+      <div class="info-block"><strong>模型通道</strong><p>${escapeHtml(state.modelConfig?.configured ? `${state.modelConfig.provider || "--"} / ${state.modelConfig.model || "--"}` : "暂未接收")}</p></div>
+      <div class="info-block"><strong>实验数据</strong><p>${escapeHtml(latestRun() ? `${latestRun().status || "--"} / ${latestRun().run_id || "--"}` : "暂未接收")}</p></div>
     </div>
   `;
 
@@ -1051,6 +1196,18 @@ document.querySelector("#sessionList")?.addEventListener("click", (event) => {
   activateNav("chat");
   renderView("chat");
   location.hash = "chat";
+});
+
+appShell?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-panel-toggle]");
+  if (!button) return;
+  const key = button.getAttribute("data-panel-toggle");
+  if (!key) return;
+  state.collapsed.inspectorPanels = {
+    ...(state.collapsed.inspectorPanels || {}),
+    [key]: !state.collapsed.inspectorPanels?.[key],
+  };
+  applyLayoutState();
 });
 
 window.addEventListener("hashchange", () => {
@@ -1293,7 +1450,7 @@ toggleInspectorButton?.addEventListener("click", () => {
 function pollClaude() {
   const timer = setInterval(async () => {
     try {
-      state.claude = await apiGet("/api/claude/status");
+      state.claude = await apiGet(endpointPath("claudeStatus"));
       if (state.view === "install" || state.view === "settings") renderView(state.view);
       if (state.claude.status !== "installing") {
         clearInterval(timer);
@@ -1309,7 +1466,7 @@ function pollClaude() {
 function pollOllama() {
   const timer = setInterval(async () => {
     try {
-      state.ollama = await apiGet("/api/ollama/status");
+      state.ollama = await apiGet(endpointPath("ollamaStatus"));
       if (state.view === "install" || state.view === "settings") renderView(state.view);
       if (state.ollama.status !== "installing") {
         clearInterval(timer);
@@ -1325,7 +1482,7 @@ function pollOllama() {
 function pollBootstrap() {
   const timer = setInterval(async () => {
     try {
-      state.bootstrap = await apiGet("/api/bootstrap/status");
+      state.bootstrap = await apiGet(endpointPath("bootstrapStatus"));
       updateBackendBadges();
       if (state.view === "install") renderView("install");
       if (!["installing", "queued"].includes(state.bootstrap.status)) {
@@ -1359,7 +1516,7 @@ document.querySelector("#runDemo").addEventListener("click", () => {
   renderView("chat");
   location.hash = "chat";
   requestAnimationFrame(() => {
-    viewHost.querySelector(".composer input")?.focus();
+    viewHost.querySelector(".composer textarea")?.focus();
   });
   renderTimeline({ t: "now", title: "chat", body: "已创建空白任务输入区" });
 });

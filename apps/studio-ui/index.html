@@ -47,8 +47,8 @@
         </section>
 
         <div class="sidebar-footer">
-          <span class="health-pill ok">CLAUDE READY</span>
-          <span class="health-pill">SAFE MODE</span>
+          <span class="health-pill" id="footerClaudeStatus">CLAUDE --</span>
+          <span class="health-pill" id="footerSecurityStatus">SAFE --</span>
         </div>
       </aside>
 
@@ -69,60 +69,85 @@
       </main>
 
       <aside class="inspector" aria-label="Task inspector">
-        <section class="panel quota-panel">
+        <section class="panel quota-panel" data-inspector-panel="quota">
           <div class="panel-header">
             <h2>额度</h2>
-            <span class="panel-badge">托管</span>
+            <div class="panel-actions">
+              <span class="panel-badge">--</span>
+              <button class="icon-button inline-toggle" data-panel-toggle="quota" type="button" title="Close" aria-label="Close">⌄</button>
+            </div>
           </div>
-          <div class="quota-number"><span id="quotaRemain">8,640</span><small> credits</small></div>
-          <div class="meter" aria-label="Quota usage">
-            <span id="quotaMeter" style="width: 36%"></span>
-          </div>
-          <div class="metric-grid">
-            <div><strong id="todayCost">126</strong><span>今日用量</span></div>
-            <div><strong>Pro</strong><span>套餐</span></div>
-            <div><strong id="runCost">18</strong><span>本任务</span></div>
-            <div><strong>可用</strong><span>服务状态</span></div>
+          <div class="panel-body">
+            <div class="quota-number"><span id="quotaRemain">--</span><small> credits</small></div>
+            <div class="meter" aria-label="Quota usage">
+              <span id="quotaMeter" style="width: 0%"></span>
+            </div>
+            <div class="metric-grid">
+              <div><strong id="todayCost">--</strong><span>今日用量</span></div>
+              <div><strong id="planName">--</strong><span>套餐</span></div>
+              <div><strong id="runCost">--</strong><span>本任务</span></div>
+              <div><strong id="serviceStatus">暂未连接</strong><span>服务状态</span></div>
+            </div>
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-inspector-panel="core">
           <div class="panel-header">
             <h2>EvoScientist Core</h2>
-            <span class="panel-badge" id="coreStateBadge">检测中</span>
+            <div class="panel-actions">
+              <span class="panel-badge" id="coreStateBadge">暂未接收</span>
+              <button class="icon-button inline-toggle" data-panel-toggle="core" type="button" title="Close" aria-label="Close">⌄</button>
+            </div>
           </div>
-          <div class="integration-mini">
-            <strong>保留原版运行时</strong>
-            <span>Studio 通过本地 studio-api 调用 EvoScientist，不改写 upstream 项目。</span>
+          <div class="panel-body">
+            <div class="integration-mini">
+              <strong>保留原版运行时</strong>
+              <span>Studio 通过本地 studio-api 调用 EvoScientist，不改写 upstream 项目。</span>
+            </div>
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-inspector-panel="task">
           <div class="panel-header">
             <h2>当前任务</h2>
-            <span class="panel-badge active" id="taskState">运行中</span>
+            <div class="panel-actions">
+              <span class="panel-badge" id="taskState">暂未接收</span>
+              <button class="icon-button inline-toggle" data-panel-toggle="task" type="button" title="Close" aria-label="Close">⌄</button>
+            </div>
           </div>
-          <ol class="task-steps" id="taskSteps"></ol>
+          <div class="panel-body">
+            <ol class="task-steps" id="taskSteps"></ol>
+          </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-inspector-panel="experiment">
           <div class="panel-header">
             <h2>实验进度</h2>
-            <span class="panel-badge">Run 03</span>
+            <div class="panel-actions">
+              <span class="panel-badge" id="experimentRunBadge">--</span>
+              <button class="icon-button inline-toggle" data-panel-toggle="experiment" type="button" title="Close" aria-label="Close">⌄</button>
+            </div>
           </div>
-          <div class="experiment-card compact">
-            <div class="experiment-title">低成本科研 Agent 工作流</div>
-            <div class="experiment-meta">Analyzing · 72%</div>
-            <div class="meter slim"><span id="experimentMeter" style="width: 72%"></span></div>
+          <div class="panel-body">
+            <div class="experiment-card compact">
+              <div class="experiment-title" id="experimentTitle">暂未接收真实任务</div>
+              <div class="experiment-meta" id="experimentMeta">暂未接收</div>
+              <div class="meter slim"><span id="experimentMeter" style="width: 0%"></span></div>
+            </div>
           </div>
         </section>
 
-        <section class="panel timeline-panel">
+        <section class="panel timeline-panel" data-inspector-panel="timeline">
           <div class="panel-header">
             <h2>实时事件</h2>
-            <span class="panel-badge">stream</span>
+            <div class="panel-actions">
+              <span class="panel-badge">stream</span>
+              <button class="icon-button inline-toggle" data-panel-toggle="timeline" type="button" title="Close" aria-label="Close">⌄</button>
+            </div>
           </div>
-          <div class="timeline" id="timeline"></div>
+          <div class="panel-body">
+            <div class="timeline" id="timeline"></div>
+          </div>
         </section>
       </aside>
     </div>

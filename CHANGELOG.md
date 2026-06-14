@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.17 - 2026-06-14
+
+- Reworked the chat composer spacing so the runtime selector, prompt box, and `发送` button keep stable widths across compact and wide desktop layouts.
+- Added lightweight slide/fade transitions for sidebars, inspector panels, session log, backend panels, and repeated cards.
+- Restyled the Studio shell toward a macOS-like light palette with softer system grays, restrained system blue accents, lower contrast shadows, and less warning-color noise.
+- Verified the updated layout at 1280px and 2048px widths; the send button no longer clips and panel toggles remain icon-only.
+
+## 0.1.16 - 2026-06-14
+
+- Added `apps/studio-ui/src/info-adapter.js` as the editable frontend information adapter for health, runs, chat state, quota, analytics, and experiment data.
+- Documented the protected UI boundary so Claude Code can update information endpoints without touching the chat layout, composer, send flow, or destructive command policy.
+- Updated frontend checks to require the adapter boundary and prevent mutable information endpoints from being hard-coded back into the main UI.
+- Wired optional analytics, quota, and experiment interfaces to real adapter values; missing data still displays `--` or `暂未接收`.
+
+## 0.1.15 - 2026-06-14
+
+- Removed prototype-only dashboard numbers from the Studio UI; unavailable quota, plan, cost, experiment, memory, and analytics data now display `--` or `暂未接收`.
+- Made right-side inspector cards individually icon-collapsible and removed visible `折叠` / `展开` wording from the frontend.
+- Increased the chat composer area with a larger multi-line input and green focus affordance.
+- Reworked experiment and analytics views to derive their content from real `/api/runs` data instead of static demo cards.
+
 ## 0.1.14 - 2026-06-14
 
 - Moved the left navigation collapse control into the sidebar and made collapse controls icon-only, so Workbench/Experiment navigation can collapse without visible Chinese button text.
