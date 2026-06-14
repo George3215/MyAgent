@@ -1,0 +1,68 @@
+name: Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pyinstaller
+      - run: PYTHON=python npm run build:sidecar
+      - run: npm run package:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evoscientist-studio-macos
+          path: |
+            dist/installers/*.dmg
+            dist/packages/macos/**
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pyinstaller
+      - run: npm run build:sidecar
+      - run: npm run package:windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evoscientist-studio-windows
+          path: |
+            dist/installers/*windows*.zip
+            dist/packages/windows/**
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pyinstaller
+      - run: PYTHON=python npm run build:sidecar
+      - run: npm run package:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evoscientist-studio-linux
+          path: |
+            dist/installers/*linux*.tar.gz
+            dist/packages/linux/**

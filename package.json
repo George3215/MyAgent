@@ -1,0 +1,24 @@
+{
+  "name": "evoscientist-studio",
+  "version": "0.1.8",
+  "private": true,
+  "description": "Cross-platform EvoScientist Studio frontend and desktop shell scaffold.",
+  "type": "module",
+  "scripts": {
+    "dev": "node tools/dev-server.mjs",
+    "api": "python3 apps/studio-api/studio_api.py --ui apps/studio-ui --port 6287 --open",
+    "build": "node tools/build.mjs",
+    "build:sidecar": "node tools/build-sidecar.mjs",
+    "make:icons": "python3 tools/make-icons.py",
+    "package": "node tools/package.mjs",
+    "package:mac": "node tools/package.mjs --platform macos",
+    "package:mac:full": "npm run build:sidecar && node tools/package.mjs --platform macos",
+    "package:windows": "node tools/package.mjs --platform windows",
+    "package:linux": "node tools/package.mjs --platform linux",
+    "preview": "python3 apps/studio-api/studio_api.py --ui dist/studio-ui --port 6287 --open",
+    "check": "node tools/check.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

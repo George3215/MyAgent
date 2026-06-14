@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EvoScientist Studio</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">ES</div>
+          <div>
+            <div class="brand-name">EvoScientist</div>
+            <div class="brand-subtitle">Studio</div>
+          </div>
+        </div>
+
+        <nav class="nav-list" id="navList">
+          <button class="nav-item active" data-view="chat" title="工作区">
+            <span class="nav-icon">01</span><span>工作台</span>
+          </button>
+          <button class="nav-item" data-view="experiments" title="实验看板">
+            <span class="nav-icon">02</span><span>实验</span>
+          </button>
+          <button class="nav-item" data-view="install" title="安装引导">
+            <span class="nav-icon">03</span><span>安装/模型</span>
+          </button>
+          <button class="nav-item" data-view="analytics" title="数据可视化">
+            <span class="nav-icon">04</span><span>数据</span>
+          </button>
+          <button class="nav-item" data-view="permissions" title="授权中心">
+            <span class="nav-icon">05</span><span>安全</span>
+          </button>
+        </nav>
+
+        <section class="session-list" aria-label="Recent sessions">
+          <div class="section-heading">最近会话</div>
+          <button class="session-item selected">
+            <span class="status-dot running"></span>
+            <span>
+              <strong>低成本科研 Agent</strong>
+              <small>12 min ago</small>
+            </span>
+          </button>
+          <button class="session-item">
+            <span class="status-dot"></span>
+            <span>
+              <strong>机器人定位综述</strong>
+              <small>Yesterday</small>
+            </span>
+          </button>
+          <button class="session-item">
+            <span class="status-dot paused"></span>
+            <span>
+              <strong>图表生成实验</strong>
+              <small>Paused</small>
+            </span>
+          </button>
+        </section>
+
+        <div class="sidebar-footer">
+          <span class="health-pill ok">CLAUDE READY</span>
+          <span class="health-pill">SAFE MODE</span>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div>
+            <div class="page-kicker" id="viewKicker">Managed Gateway</div>
+            <h1 id="viewTitle">科研工作区</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="refreshQuota" title="同步状态">SYNC</button>
+            <button class="primary-button" id="runDemo">RUN</button>
+          </div>
+        </header>
+
+        <section id="viewHost" class="view-host"></section>
+      </main>
+
+      <aside class="inspector" aria-label="Task inspector">
+        <section class="panel quota-panel">
+          <div class="panel-header">
+            <h2>额度</h2>
+            <span class="panel-badge">托管</span>
+          </div>
+          <div class="quota-number"><span id="quotaRemain">8,640</span><small> credits</small></div>
+          <div class="meter" aria-label="Quota usage">
+            <span id="quotaMeter" style="width: 36%"></span>
+          </div>
+          <div class="metric-grid">
+            <div><strong id="todayCost">126</strong><span>今日用量</span></div>
+            <div><strong>Pro</strong><span>套餐</span></div>
+            <div><strong id="runCost">18</strong><span>本任务</span></div>
+            <div><strong>可用</strong><span>服务状态</span></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>EvoScientist Core</h2>
+            <span class="panel-badge" id="coreStateBadge">检测中</span>
+          </div>
+          <div class="integration-mini">
+            <strong>保留原版运行时</strong>
+            <span>Studio 通过本地 studio-api 调用 EvoScientist，不改写 upstream 项目。</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>当前任务</h2>
+            <span class="panel-badge active" id="taskState">运行中</span>
+          </div>
+          <ol class="task-steps" id="taskSteps"></ol>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>实验进度</h2>
+            <span class="panel-badge">Run 03</span>
+          </div>
+          <div class="experiment-card compact">
+            <div class="experiment-title">低成本科研 Agent 工作流</div>
+            <div class="experiment-meta">Analyzing · 72%</div>
+            <div class="meter slim"><span id="experimentMeter" style="width: 72%"></span></div>
+          </div>
+        </section>
+
+        <section class="panel timeline-panel">
+          <div class="panel-header">
+            <h2>实时事件</h2>
+            <span class="panel-badge">stream</span>
+          </div>
+          <div class="timeline" id="timeline"></div>
+        </section>
+      </aside>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

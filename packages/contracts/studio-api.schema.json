@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evoscientist.local/contracts/studio-api.schema.json",
+  "title": "EvoScientist Studio API Contract",
+  "type": "object",
+  "properties": {
+    "runEvent": {
+      "type": "object",
+      "required": ["run_id", "seq", "type", "created_at"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "seq": { "type": "integer" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "thinking",
+            "tool_call",
+            "tool_result",
+            "subagent_start",
+            "subagent_end",
+            "todo_update",
+            "usage_stats",
+            "artifact_created",
+            "approval_required",
+            "permission_granted",
+            "installer_step",
+            "analytics_snapshot",
+            "error",
+            "done"
+          ]
+        },
+        "agent": { "type": "string" },
+        "tool_name": { "type": "string" },
+        "payload": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "quota": {
+      "type": "object",
+      "required": ["mode", "remaining", "used_today", "currency"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["byok", "managed_gateway", "local_model"]
+        },
+        "plan_name": { "type": "string" },
+        "remaining": { "type": "number" },
+        "used_today": { "type": "number" },
+        "currency": { "type": "string" },
+        "is_available": { "type": "boolean" }
+      }
+    },
+    "permissionGrant": {
+      "type": "object",
+      "required": ["id", "scope", "status", "granted_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "install_project",
+            "install_dependencies",
+            "workspace_files",
+            "model_calls",
+            "analytics",
+            "auto_update",
+            "crash_report"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["granted", "revoked", "pending"]
+        },
+        "path_scope": { "type": "string" },
+        "granted_at": { "type": "string", "format": "date-time" },
+        "revoked_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "securityPolicy": {
+      "type": "object",
+      "required": ["mode", "never_allow", "user_approval_can_override"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["hard_block_destructive_commands"]
+        },
+        "never_allow": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "rm",
+              "rmdir",
+              "del",
+              "erase",
+              "rd",
+              "remove-item",
+              "shred",
+              "wipe",
+              "sdelete",
+              "sudo",
+              "su",
+              "chmod",
+              "chown",
+              "mkfs",
+              "dd",
+              "diskutil",
+              "format",
+              "shutdown",
+              "reboot",
+              "poweroff",
+              "halt"
+            ]
+          }
+        },
+        "shell_execution": { "type": "string" },
+        "user_approval_can_override": { "type": "boolean", "const": false }
+      }
+    },
+    "claudeCodeStatus": {
+      "type": "object",
+      "required": ["status", "phase", "updated_at"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["not_installed", "installing", "installed", "failed", "error"]
+        },
+        "phase": { "type": "string" },
+        "path": { "type": "string" },
+        "version": { "type": "string" },
+        "log": { "type": "string" },
+        "error": { "type": "string" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ollamaStatus": {
+      "type": "object",
+      "required": ["status", "phase", "updated_at"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["not_installed", "installing", "installed", "failed", "error"]
+        },
+        "phase": { "type": "string" },
+        "path": { "type": "string" },
+        "version": { "type": "string" },
+        "base_url": { "type": "string" },
+        "launch_claude": { "type": "boolean" },
+        "log": { "type": "string" },
+        "error": { "type": "string" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "runtimeConfig": {
+      "type": "object",
+      "required": ["active_runtime", "available", "bootstrap_strategy"],
+      "properties": {
+        "active_runtime": {
+          "type": "string",
+          "enum": ["claude_code", "evoscientist"]
+        },
+        "available": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["claude_code", "evoscientist"]
+          }
+        },
+        "bootstrap_strategy": {
+          "type": "string",
+          "enum": ["claude_code_first", "deterministic"]
+        },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "installerStep": {
+      "type": "object",
+      "required": ["id", "label", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "done", "failed"]
+        },
+        "log_path": { "type": "string" },
+        "error": { "type": "string" }
+      }
+    },
+    "modelConfig": {
+      "type": "object",
+      "required": ["mode", "api_base", "default_model"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["managed_gateway", "byok", "local_model"]
+        },
+        "api_base": { "type": "string" },
+        "default_model": { "type": "string" },
+        "claude_transport": {
+          "type": "string",
+          "enum": ["ollama", "direct"]
+        },
+        "key_storage": {
+          "type": "string",
+          "enum": ["system_keychain", "encrypted_file", "none"]
+        },
+        "quota_limit": { "type": "number" }
+      }
+    },
+    "analyticsSnapshot": {
+      "type": "object",
+      "required": ["created_at", "push_success_rate", "experiment_effect_rate"],
+      "properties": {
+        "created_at": { "type": "string", "format": "date-time" },
+        "push_success_rate": { "type": "number" },
+        "experiment_effect_rate": { "type": "number" },
+        "average_cost": { "type": "number" },
+        "resume_success_rate": { "type": "number" },
+        "failure_categories": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
