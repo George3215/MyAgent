@@ -1,6 +1,6 @@
 {
   "name": "evoscientist-studio",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Cross-platform EvoScientist Studio frontend and desktop shell scaffold.",
   "type": "module",

@@ -395,7 +395,7 @@ function macNativeLauncherSwift() {
 import Foundation
 import WebKit
 
-final class StudioAppDelegate: NSObject, NSApplicationDelegate {
+final class StudioAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var window: NSWindow?
   private var webView: WKWebView?
   private var apiProcess: Process?
@@ -419,10 +419,24 @@ final class StudioAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    true
+    writeLog("applicationShouldTerminateAfterLastWindowClosed=false\\n")
+    return false
+  }
+
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    if !flag {
+      window?.makeKeyAndOrderFront(nil)
+      NSApp.activate(ignoringOtherApps: true)
+    }
+    return true
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    writeLog("main window closed; app remains available from Dock.\\n")
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    writeLog("applicationWillTerminate\\n")
     stdoutPipe?.fileHandleForReading.readabilityHandler = nil
     stderrPipe?.fileHandleForReading.readabilityHandler = nil
     if let process = apiProcess, process.isRunning {
@@ -446,6 +460,8 @@ final class StudioAppDelegate: NSObject, NSApplicationDelegate {
     window.title = "EvoScientist Studio"
     window.minSize = NSSize(width: 1040, height: 680)
     window.contentView = webView
+    window.isReleasedWhenClosed = false
+    window.delegate = self
     window.center()
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
@@ -622,9 +638,9 @@ final class StudioAppDelegate: NSObject, NSApplicationDelegate {
   }
 }
 
+private var retainedDelegate: StudioAppDelegate? = StudioAppDelegate()
 let app = NSApplication.shared
-let delegate = StudioAppDelegate()
-app.delegate = delegate
+app.delegate = retainedDelegate
 app.run()
 `;
 }

@@ -12,6 +12,7 @@ const state = {
   ollama: { status: "unknown", phase: "offline", launch_claude: false },
   runtime: { active_runtime: "claude_code" },
   modelConfig: { configured: false },
+  runs: [],
 };
 
 const API_BASE =
@@ -206,6 +207,8 @@ async function refreshBackendState({ silent = false } = {}) {
     state.ollama = data.ollama || state.ollama;
     state.runtime = data.runtime || state.runtime;
     state.modelConfig = data.model || state.modelConfig;
+    const runData = await apiGet("/api/runs");
+    state.runs = Array.isArray(runData.runs) ? runData.runs : [];
     renderTimeline({
       t: "now",
       title: "studio-api",
@@ -244,7 +247,7 @@ function displayValue(value, fallback = "未配置") {
 function statusTone(status) {
   const value = String(status || "").toLowerCase();
   if (["installed", "ready", "online", "ok", "done", "active"].includes(value)) return "ok";
-  if (["installing", "queued", "running", "waiting", "pending"].includes(value)) return "warn";
+  if (["installing", "queued", "running", "waiting", "pending", "auth_required", "stale"].includes(value)) return "warn";
   if (["error", "failed", "offline", "not_installed", "blocked"].includes(value)) return "danger";
   return "neutral";
 }
@@ -283,6 +286,7 @@ function backendConsole({ compact = false } = {}) {
   const model = state.modelConfig || {};
   const security = state.backend?.security || {};
   const neverAllow = Array.isArray(security.never_allow) ? security.never_allow : [];
+  const recentRuns = Array.isArray(state.runs) ? state.runs.slice(0, 3) : [];
   const wrap = h("section", `backend-console wide-panel ${compact ? "compact" : ""}`);
   wrap.innerHTML = `
     <div class="panel-header">
@@ -298,9 +302,12 @@ function backendConsole({ compact = false } = {}) {
     <div class="service-grid">
       ${serviceCard({
         title: "Claude Code",
-        status: claude.status || "unknown",
+        status: claude.phase === "auth_required" ? "auth_required" : claude.status || "unknown",
         meta: "负责首装、修复、代码科研任务和 EvoScientist 高级安装代理。",
         rows: [
+          ["阶段", claude.phase],
+          ["登录", claude.authenticated ? "authenticated" : "not logged in"],
+          ["认证方式", claude.auth_method || claude.api_provider],
           ["版本", claude.version || claude.phase],
           ["路径", claude.path],
           ["日志", claude.log],
@@ -337,6 +344,22 @@ function backendConsole({ compact = false } = {}) {
           ["禁止", neverAllow.slice(0, 8).join(", ") || "rm, sudo, dd, chmod"],
         ],
       })}
+    </div>
+    <div class="run-feed">
+      <div class="run-feed-head">
+        <strong>最近真实任务</strong>
+        <span>${recentRuns.length ? `${recentRuns.length} runs` : "no runs yet"}</span>
+      </div>
+      <div class="run-list">
+        ${recentRuns.length ? recentRuns.map((run) => `
+          <div class="run-item ${statusTone(run.status)}">
+            <span>${escapeHtml(run.runtime || "runtime")}</span>
+            <strong>${escapeHtml(run.status || "unknown")}</strong>
+            <em>${escapeHtml(run.exit_code === undefined ? run.run_id || "" : `exit ${run.exit_code}`)}</em>
+            <small title="${escapeHtml(run.error || run.prompt || "")}">${escapeHtml(run.error || run.prompt || "")}</small>
+          </div>
+        `).join("") : `<div class="run-empty">等待 UI 发起 Claude Code 或 EvoScientist 任务。</div>`}
+      </div>
     </div>
     <div class="backend-flow">
       <div class="flow-step"><strong>UI</strong><span>聊天 / 安装 / 设置</span></div>
@@ -410,20 +433,46 @@ function chatView() {
   return wrap;
 }
 
+function selectOption(value, label, current) {
+  const selected = value === current ? " selected" : "";
+  return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
+}
+
 function modelConfigPanel() {
   const panel = h("section", "settings-panel cyber-config");
+  const config = state.modelConfig || {};
+  const mode = config.mode || "local_model";
+  const provider = config.provider || "ollama";
+  const transport = config.claude_transport || "ollama";
+  const anthropicBase =
+    config.anthropic_base_url ||
+    (provider === "deepseek"
+      ? `${(config.api_base || "https://api.deepseek.com").replace(/\/+$/, "")}/anthropic`
+      : "");
   panel.innerHTML = `
     <div class="panel-header">
       <h2>模型 / API 接入</h2>
       <span class="panel-badge active">MODEL IO</span>
     </div>
     <div class="config-grid">
-      <label><span>模式</span><select id="configMode"><option value="local_model">local_model</option><option value="byok">byok</option><option value="managed_gateway">managed_gateway</option></select></label>
-      <label><span>Provider</span><select id="configProvider"><option value="ollama">ollama</option><option value="deepseek">deepseek</option><option value="custom-openai">custom-openai</option></select></label>
-      <label><span>Claude 通道</span><select id="configClaudeTransport"><option value="ollama">ollama launch claude</option><option value="direct">direct claude</option></select></label>
-      <label><span>API Base</span><input id="configApiBase" value="${state.modelConfig.api_base || "http://localhost:11434"}" /></label>
-      <label><span>API Key / Token</span><input id="configApiKey" value="" placeholder="${state.modelConfig.api_key_set ? "已保存，留空则不覆盖" : "Ollama 可填 ollama，云模型填 token"}" /></label>
-      <label><span>Claude 模型</span><input id="configModel" value="${state.modelConfig.model || "kimi-k2.5:cloud"}" /></label>
+      <label><span>模式</span><select id="configMode">${[
+        ["local_model", "local_model"],
+        ["byok", "byok"],
+        ["managed_gateway", "managed_gateway"],
+      ].map(([value, label]) => selectOption(value, label, mode)).join("")}</select></label>
+      <label><span>Provider</span><select id="configProvider">${[
+        ["ollama", "ollama"],
+        ["deepseek", "deepseek"],
+        ["custom-openai", "custom-openai"],
+      ].map(([value, label]) => selectOption(value, label, provider)).join("")}</select></label>
+      <label><span>Claude 通道</span><select id="configClaudeTransport">${[
+        ["ollama", "ollama launch claude"],
+        ["direct", "direct claude"],
+      ].map(([value, label]) => selectOption(value, label, transport)).join("")}</select></label>
+      <label><span>API Base</span><input id="configApiBase" value="${escapeHtml(config.api_base || "http://localhost:11434")}" /></label>
+      <label><span>Claude Anthropic Base</span><input id="configAnthropicBase" value="${escapeHtml(anthropicBase)}" placeholder="DeepSeek: https://api.deepseek.com/anthropic" /></label>
+      <label><span>API Key / Token</span><input id="configApiKey" value="" placeholder="${config.api_key_set ? "已保存，留空则不覆盖" : "Ollama 可填 ollama，云模型填 token"}" /></label>
+      <label><span>Claude 模型</span><input id="configModel" value="${escapeHtml(config.model || "kimi-k2.5:cloud")}" /></label>
     </div>
     <div class="model-grid compact">
       ${models.map(([name, id, tag, body], index) => `
@@ -837,7 +886,7 @@ viewHost.addEventListener("click", async (event) => {
     bootstrapButton.textContent = "正在启动 Claude 安装代理...";
     try {
       state.bootstrap = await apiPost("/api/bootstrap/start", {
-        repo_url: "https://github.com/EvoScientist/EvoScientist.git",
+        repo_url: "https://github.com/George3215/MyEvoScientist.git",
         install: true,
         strategy: "claude_code_first",
       });
@@ -856,7 +905,7 @@ viewHost.addEventListener("click", async (event) => {
     deterministicButton.disabled = true;
     try {
       state.bootstrap = await apiPost("/api/bootstrap/start", {
-        repo_url: "https://github.com/EvoScientist/EvoScientist.git",
+        repo_url: "https://github.com/George3215/MyEvoScientist.git",
         install: true,
         strategy: "deterministic",
       });
@@ -897,6 +946,7 @@ viewHost.addEventListener("click", async (event) => {
         provider: document.querySelector("#configProvider")?.value,
         claude_transport: document.querySelector("#configClaudeTransport")?.value,
         api_base: document.querySelector("#configApiBase")?.value,
+        anthropic_base_url: document.querySelector("#configAnthropicBase")?.value,
         api_key: document.querySelector("#configApiKey")?.value,
         model: document.querySelector("#configModel")?.value,
       });

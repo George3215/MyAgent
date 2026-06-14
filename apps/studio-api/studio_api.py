@@ -30,7 +30,7 @@ from urllib.parse import unquote, urlparse
 from urllib.request import urlretrieve
 
 APP_NAME = "EvoScientistStudio"
-DEFAULT_REPO_URL = "https://github.com/EvoScientist/EvoScientist.git"
+DEFAULT_REPO_URL = "https://github.com/George3215/MyEvoScientist.git"
 DEFAULT_PORT = 6287
 CLAUDE_INSTALL_SH = "https://claude.ai/install.sh"
 CLAUDE_INSTALL_PS1 = "https://claude.ai/install.ps1"
@@ -165,6 +165,9 @@ def claude_default() -> dict:
         "phase": "waiting",
         "path": which("claude"),
         "version": "",
+        "authenticated": False,
+        "auth_method": "none",
+        "api_provider": "",
         "log": str(LOG_DIR / "claude-code.log"),
         "updated_at": now(),
     }
@@ -469,15 +472,37 @@ def claude_status() -> dict:
     path = resolve_claude()
     state = load_json(CLAUDE_STATE, claude_default())
     if not path:
-        state.update({"status": "not_installed", "path": "", "version": ""})
+        state.update({"status": "not_installed", "path": "", "version": "", "authenticated": False})
         return state
     code, output = run_capture([path, "--version"], timeout=20)
+    auth_code, auth_output = run_capture([path, "auth", "status"], timeout=20)
+    auth = {}
+    if auth_output:
+        try:
+            auth = json.loads(auth_output)
+        except json.JSONDecodeError:
+            auth = {"raw": auth_output}
+    model_config = load_json(MODEL_STATE, {})
+    direct_env_configured = (
+        str(model_config.get("provider") or "") != "ollama"
+        and str(model_config.get("claude_transport") or "") == "direct"
+        and bool(model_config.get("api_key_set"))
+    )
+    logged_in = bool(auth.get("loggedIn"))
+    authenticated = logged_in or direct_env_configured
+    phase = "ready" if code == 0 and authenticated else "auth_required"
+    if code != 0:
+        phase = "version_check_failed"
     state.update(
         {
             "status": "installed" if code == 0 else "error",
-            "phase": "ready" if code == 0 else "version_check_failed",
+            "phase": phase,
             "path": path,
             "version": output,
+            "authenticated": authenticated,
+            "auth_method": str(auth.get("authMethod") if logged_in else ("env_api_key" if direct_env_configured else "none")),
+            "api_provider": str(auth.get("apiProvider") if logged_in else (model_config.get("provider") or "")),
+            "auth_status_code": auth_code,
         }
     )
     write_json(CLAUDE_STATE, state)
@@ -655,14 +680,13 @@ def claude_print_args(prompt: str) -> tuple[list[str], str]:
         claude_allowed_tools(),
         "--disallowedTools",
         claude_disallowed_tools(),
-        prompt,
     ]
     if use_ollama:
         ollama = resolve_ollama()
         if not ollama:
             raise RuntimeError("Ollama is required for Claude Code Ollama mode")
         return [ollama, "launch", "claude", "--model", model, "--yes", "--", *claude_args], "ollama launch claude"
-    return [claude, *claude_args], "claude"
+    return [claude, "--bare", "--model", model, *claude_args], "claude direct"
 
 
 def run_claude_print(prompt: str, *, cwd: Path, log_path: Path, timeout: int = 1800) -> None:
@@ -675,12 +699,14 @@ def run_claude_print(prompt: str, *, cwd: Path, log_path: Path, timeout: int = 1
             args,
             cwd=str(cwd),
             env=run_env(),
+            stdin=subprocess.PIPE,
             stdout=log,
             stderr=subprocess.STDOUT,
             text=True,
         )
         try:
-            code = proc.wait(timeout=timeout)
+            proc.communicate(prompt, timeout=timeout)
+            code = proc.returncode
         except subprocess.TimeoutExpired as exc:
             proc.kill()
             raise RuntimeError("Claude Code bootstrap timed out") from exc
@@ -893,6 +919,41 @@ def public_model_config() -> dict:
     return public
 
 
+def list_runs(limit: int = 20) -> dict:
+    ensure_home()
+    records = []
+    for path in STATE_DIR.glob("run-*.json"):
+        record = load_json(path, {})
+        if record:
+            if record.get("status") == "running" and record.get("pid") and not pid_is_running(int(record["pid"])):
+                record.update(
+                    {
+                        "status": "stale",
+                        "error": "process is no longer running; run ended before Studio watcher recorded the exit",
+                        "finished_at": now(),
+                    }
+                )
+                write_json(path, record)
+            records.append(record)
+    records.sort(key=lambda item: str(item.get("started_at") or item.get("finished_at") or ""), reverse=True)
+    records = records[:limit]
+    return {"runs": records, "count": len(records)}
+
+
+def pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
 def save_model_config(payload: dict) -> dict:
     ensure_home()
     mode = str(payload.get("mode") or "local_model")
@@ -902,12 +963,14 @@ def save_model_config(payload: dict) -> dict:
     api_key = str(payload.get("api_key") or "")
     workspace = str(payload.get("workspace") or WORKSPACE_DIR)
     claude_transport = str(payload.get("claude_transport") or ("ollama" if provider == "ollama" else "direct"))
+    anthropic_base_url = str(payload.get("anthropic_base_url") or default_anthropic_base_url(provider, api_base))
 
     stored = {
         "mode": mode,
         "provider": provider,
         "model": model,
         "api_base": api_base,
+        "anthropic_base_url": anthropic_base_url,
         "claude_transport": claude_transport,
         "workspace": workspace,
         "key_storage": "local_secret_env",
@@ -927,6 +990,15 @@ def provider_for_mode(mode: str) -> str:
     return "deepseek"
 
 
+def default_anthropic_base_url(provider: str, api_base: str) -> str:
+    if provider != "deepseek":
+        return ""
+    base = (api_base or "https://api.deepseek.com").rstrip("/")
+    if base.endswith("/anthropic"):
+        return base
+    return f"{base}/anthropic"
+
+
 def write_evosci_config(config: dict, api_key: str) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     workspace = Path(str(config["workspace"])).expanduser()
@@ -943,6 +1015,8 @@ def write_evosci_config(config: dict, api_key: str) -> None:
     ]
     provider = str(config["provider"])
     api_base = str(config.get("api_base") or "")
+    anthropic_base = str(config.get("anthropic_base_url") or default_anthropic_base_url(provider, api_base))
+    claude_transport = str(config.get("claude_transport") or "")
     key = api_key or read_existing_secret(provider)
     if provider == "custom-openai":
         yaml_lines.append(f"custom_openai_base_url: {quote_yaml(api_base)}")
@@ -963,6 +1037,10 @@ def write_evosci_config(config: dict, api_key: str) -> None:
             env_lines.append(f"CUSTOM_OPENAI_BASE_URL={shell_value(api_base)}")
     elif provider == "deepseek" and key:
         env_lines.append(f"DEEPSEEK_API_KEY={shell_value(key)}")
+        if claude_transport == "direct" and anthropic_base:
+            env_lines.append(f"ANTHROPIC_API_KEY={shell_value(key)}")
+            env_lines.append(f"ANTHROPIC_AUTH_TOKEN={shell_value(key)}")
+            env_lines.append(f"ANTHROPIC_BASE_URL={shell_value(anthropic_base)}")
     elif provider == "ollama":
         ollama_base = api_base or "http://localhost:11434"
         env_lines.append(f"OLLAMA_BASE_URL={shell_value(ollama_base)}")
@@ -1030,13 +1108,14 @@ def active_runtime(payload: dict | None = None) -> str:
     return runtime
 
 
-def start_claude_run(prompt: str, workspace: Path, run_id: str, log_path: Path) -> dict:
-    if claude_status().get("status") != "installed":
+def start_claude_run(prompt: str, workspace: Path, run_id: str, log_path: Path, timeout_seconds: int) -> dict:
+    state = claude_status()
+    if state.get("status") != "installed" or state.get("phase") == "auth_required":
         raise RuntimeError("Claude Code is not installed or authenticated")
     workspace.mkdir(parents=True, exist_ok=True)
     thread = threading.Thread(
         target=claude_run_thread,
-        args=(prompt, workspace, log_path, run_id),
+        args=(prompt, workspace, log_path, run_id, timeout_seconds),
         daemon=True,
     )
     thread.start()
@@ -1046,13 +1125,14 @@ def start_claude_run(prompt: str, workspace: Path, run_id: str, log_path: Path) 
         "runtime": "claude_code",
         "prompt": prompt,
         "log_path": str(log_path),
+        "timeout_seconds": timeout_seconds,
         "started_at": now(),
     }
 
 
-def claude_run_thread(prompt: str, workspace: Path, log_path: Path, run_id: str) -> None:
+def claude_run_thread(prompt: str, workspace: Path, log_path: Path, run_id: str, timeout_seconds: int) -> None:
     try:
-        run_claude_print(prompt, cwd=workspace, log_path=log_path)
+        run_claude_print(prompt, cwd=workspace, log_path=log_path, timeout=timeout_seconds)
         record = load_json(STATE_DIR / f"run-{run_id}.json", {})
         record.update({"status": "done", "finished_at": now()})
         write_json(STATE_DIR / f"run-{run_id}.json", record)
@@ -1063,6 +1143,28 @@ def claude_run_thread(prompt: str, workspace: Path, log_path: Path, run_id: str)
         write_json(STATE_DIR / f"run-{run_id}.json", record)
 
 
+def evosci_run_thread(proc: subprocess.Popen, log_path: Path, run_id: str, timeout_seconds: int) -> None:
+    timed_out = False
+    try:
+        code = proc.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        proc.kill()
+        code = proc.wait()
+    record = load_json(STATE_DIR / f"run-{run_id}.json", {})
+    update = {"exit_code": code, "finished_at": now()}
+    if timed_out:
+        update["status"] = "failed"
+        update["error"] = f"EvoScientist timed out after {timeout_seconds}s; see {log_path}"
+    elif code == 0:
+        update["status"] = "done"
+    else:
+        update["status"] = "failed"
+        update["error"] = f"EvoScientist exited with {code}; see {log_path}"
+    record.update(update)
+    write_json(STATE_DIR / f"run-{run_id}.json", record)
+
+
 def start_run(payload: dict) -> dict:
     prompt = str(payload.get("prompt") or "").strip()
     if not prompt:
@@ -1070,12 +1172,13 @@ def start_run(payload: dict) -> dict:
     validate_prompt_policy(prompt)
     workspace = Path(str(payload.get("workspace") or WORKSPACE_DIR)).expanduser()
     workspace.mkdir(parents=True, exist_ok=True)
+    timeout_seconds = int(payload.get("timeout_seconds") or 1800)
     run_id = uuid.uuid4().hex[:12]
     log_path = RUN_DIR / f"{run_id}.log"
 
     runtime = active_runtime(payload)
     if runtime == "claude_code":
-        record = start_claude_run(prompt, workspace, run_id, log_path)
+        record = start_claude_run(prompt, workspace, run_id, log_path, timeout_seconds)
         write_json(STATE_DIR / f"run-{run_id}.json", record)
         return record
 
@@ -1111,9 +1214,16 @@ def start_run(payload: dict) -> dict:
         "pid": proc.pid,
         "log_path": str(log_path),
         "security_policy": SECURITY_POLICY["mode"],
+        "timeout_seconds": timeout_seconds,
         "started_at": now(),
     }
     write_json(STATE_DIR / f"run-{run_id}.json", record)
+    thread = threading.Thread(
+        target=evosci_run_thread,
+        args=(proc, log_path, run_id, timeout_seconds),
+        daemon=True,
+    )
+    thread.start()
     return record
 
 
@@ -1173,6 +1283,8 @@ class StudioHandler(BaseHTTPRequestHandler):
             self.respond(load_json(BOOTSTRAP_STATE, bootstrap_default()))
         elif path == "/api/config/model":
             self.respond(public_model_config())
+        elif path == "/api/runs":
+            self.respond(list_runs())
         elif path == "/api/security/policy":
             self.respond(SECURITY_POLICY)
         elif path == "/api/claude/status":

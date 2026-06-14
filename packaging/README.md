@@ -36,8 +36,8 @@ npm run package:mac
 Outputs:
 
 - `dist/packages/macos/EvoScientist Studio.app`
-- `dist/installers/EvoScientist-Studio-0.1.8-macos.dmg`
-- `dist/installers/EvoScientist-Studio-0.1.8-macos.pkg`
+- `dist/installers/EvoScientist-Studio-0.1.9-macos.dmg`
+- `dist/installers/EvoScientist-Studio-0.1.9-macos.pkg`
 
 The macOS `.app` opens an internal `WKWebView` window and starts the bundled
 sidecar. It should not launch Safari or Chrome for normal use.
@@ -52,7 +52,7 @@ npm run package:windows
 
 Outputs:
 
-- `dist/installers/EvoScientist-Studio-0.1.8-windows-portable.zip`
+- `dist/installers/EvoScientist-Studio-0.1.9-windows-portable.zip`
 - `dist/packages/windows/EvoScientist-Studio/install.ps1`
 - `dist/packages/windows/EvoScientist-Studio/EvoScientistStudio.iss`
 
@@ -72,7 +72,7 @@ npm run package:linux
 
 Outputs:
 
-- `dist/installers/EvoScientist-Studio-0.1.8-linux-appdir.tar.gz`
+- `dist/installers/EvoScientist-Studio-0.1.9-linux-appdir.tar.gz`
 - `dist/packages/linux/EvoScientist-Studio.AppDir`
 
 Build an AppImage on Linux with `appimagetool`.

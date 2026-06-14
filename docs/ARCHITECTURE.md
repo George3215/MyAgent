@@ -5,9 +5,11 @@
 Build one cross-platform Studio product around the existing EvoScientist agent
 runtime without forcing users to operate a terminal UI.
 
-The original EvoScientist repository remains a preserved core dependency. Studio
-adds the product shell, local API adapter, permission layer, and visualization
-layer around it.
+The original EvoScientist project remains a compatibility target, but packaged
+Studio builds install the owner-controlled Core source from
+`https://github.com/George3215/MyEvoScientist.git`. Studio adds the product
+shell, local API adapter, permission layer, and visualization layer around that
+Core runtime.
 
 ## Shared Layers
 
@@ -32,7 +34,8 @@ Runtime switch
 Studio should not fork user-visible behavior directly into the original project
 at the beginning. Keep these parts separate:
 
-- `EvoScientist Core`: cloned upstream repository and Python runtime.
+- `EvoScientist Core`: cloned from `George3215/MyEvoScientist` and installed
+  into a Studio-managed Python runtime.
 - `Claude Code Runtime`: installed or detected first, then used as the
   installation/repair agent for EvoScientist and as an optional research
   runtime.
@@ -44,9 +47,9 @@ at the beginning. Keep these parts separate:
 - `Studio Installer`: platform-specific bootstrapper that can clone, install,
   repair, upgrade, and launch the core runtime.
 
-This preserves the current EvoScientist version and lets the Studio project
-iterate independently. When upstream changes, the adapter can be updated without
-rewriting the desktop product shell.
+This keeps the Studio product independent from upstream changes. The owner fork
+can be patched for compatibility first, then upstream changes can be pulled only
+after they have been tested against Studio.
 
 ## Connected First-Run Flow
 
