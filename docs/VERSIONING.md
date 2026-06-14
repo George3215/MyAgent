@@ -5,9 +5,9 @@
 Use Git tags for product source versions:
 
 ```bash
-git tag v0.1.11
+git tag v0.1.12
 git push origin main
-git push origin v0.1.11
+git push origin v0.1.12
 ```
 
 The repository should track source code, docs, packaging scripts, contract
@@ -32,8 +32,8 @@ source repository.
 Current clean macOS build:
 
 ```text
-dist/installers/EvoScientist-Studio-0.1.11-macos.dmg
-dist/installers/EvoScientist-Studio-0.1.11-macos.pkg
+dist/installers/EvoScientist-Studio-0.1.12-macos.dmg
+dist/installers/EvoScientist-Studio-0.1.12-macos.pkg
 ```
 
 ## Release Rules

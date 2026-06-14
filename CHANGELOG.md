@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.12 - 2026-06-14
+
+- Added collapsible non-chat panels for the app sidebar, inspector, chat history, backend status, and current session log.
+- Fixed Chinese text alignment and overflow in small controls, status badges, approval buttons, and compact backend cards.
+- Rewrote the main README in Chinese and documented the repository split: `George3215/MyAgent.git` for the App/frontend and `George3215/MyEvoScientist.git` for EvoScientist Core.
+- Reverified UI -> studio-api -> Claude Code -> DeepSeek direct mode, including model configuration, chat history persistence, refresh, clear, and destructive command blocking.
+- Reverified UI -> studio-api -> EvoScientist Core -> DeepSeek using the installed Core test environment.
+
 ## 0.1.9 - 2026-06-14
 
 - Changed the default EvoScientist Core source to `https://github.com/George3215/MyEvoScientist.git`.

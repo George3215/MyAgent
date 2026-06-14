@@ -42,6 +42,7 @@ select {
 
 button {
   cursor: pointer;
+  letter-spacing: 0;
 }
 
 .app-shell {
@@ -52,6 +53,18 @@ button {
   height: 100vh;
   min-height: 720px;
   overflow: hidden;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr) 340px;
+}
+
+.app-shell.inspector-collapsed {
+  grid-template-columns: 248px minmax(0, 1fr) 0;
+}
+
+.app-shell.sidebar-collapsed.inspector-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr) 0;
 }
 
 .sidebar,
@@ -70,11 +83,25 @@ button {
   min-height: 0;
 }
 
+.app-shell.sidebar-collapsed .sidebar {
+  align-items: center;
+  padding: 18px 10px;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 4px 6px 12px;
+}
+
+.app-shell.sidebar-collapsed .brand {
+  justify-content: center;
+  padding: 4px 0 10px;
+}
+
+.app-shell.sidebar-collapsed .brand > div:not(.brand-mark) {
+  display: none;
 }
 
 .brand-mark {
@@ -122,6 +149,21 @@ small {
 .nav-item {
   height: 40px;
   padding: 0 10px;
+}
+
+.app-shell.sidebar-collapsed .nav-list {
+  width: 100%;
+}
+
+.app-shell.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.app-shell.sidebar-collapsed .nav-item span:not(.nav-icon),
+.app-shell.sidebar-collapsed .session-list,
+.app-shell.sidebar-collapsed .sidebar-footer {
+  display: none;
 }
 
 .nav-item.active,
@@ -175,8 +217,12 @@ small {
 
 .session-item small {
   display: block;
+  max-width: 170px;
   margin-top: 3px;
+  overflow: hidden;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-dot {
@@ -212,12 +258,18 @@ small {
 
 .health-pill,
 .panel-badge {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
   padding: 5px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .health-pill.ok,
@@ -270,7 +322,10 @@ h2 {
 .topbar-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
 }
 
 .icon-button,
@@ -283,24 +338,46 @@ h2 {
   background: var(--surface);
   color: var(--ink);
   min-height: 36px;
+  min-width: 0;
+  line-height: 1.15;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
 }
 
 .icon-button {
+  display: inline-grid;
+  place-items: center;
   width: 36px;
   padding: 0;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .topbar-actions .icon-button {
   width: 58px;
 }
 
+.panel-toggle {
+  color: var(--blue);
+}
+
+.inline-toggle {
+  width: auto;
+  min-width: 48px;
+  padding: 0 10px;
+}
+
 .primary-button {
+  display: inline-grid;
+  place-items: center;
   background: var(--teal);
   border-color: var(--teal);
   color: white;
   padding: 0 14px;
   font-weight: 800;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .primary-button:hover,
@@ -330,6 +407,10 @@ h2 {
   min-height: 0;
 }
 
+.chat-layout.history-collapsed {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
 .conversation-history,
 .chat-feed,
 .artifact-dock,
@@ -357,16 +438,58 @@ h2 {
   padding: 12px;
 }
 
+.conversation-history.collapsed {
+  grid-template-rows: 1fr;
+  place-items: center;
+  padding: 8px;
+}
+
+.history-rail {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  width: 100%;
+  height: 100%;
+}
+
+.rail-button {
+  display: grid;
+  width: 100%;
+  min-height: 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.1;
+  overflow: hidden;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .history-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .history-head strong {
+  min-width: 0;
   color: var(--ink);
   font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
 }
 
 .history-list {
@@ -441,6 +564,10 @@ h2 {
   grid-template-rows: minmax(0, 1fr) auto minmax(148px, 190px);
   gap: 12px;
   min-height: 0;
+}
+
+.chat-main.log-collapsed {
+  grid-template-rows: minmax(0, 1fr) auto 54px;
 }
 
 .chat-feed {
@@ -521,6 +648,10 @@ h2 {
   box-shadow: inset 4px 0 0 var(--rose);
 }
 
+.approval-card > div:first-child {
+  min-width: 0;
+}
+
 .backend-console {
   width: 100%;
   max-width: 100%;
@@ -530,6 +661,44 @@ h2 {
 .backend-console.compact {
   padding: 14px;
   box-shadow: none;
+}
+
+.backend-console.collapsed {
+  padding-bottom: 12px;
+}
+
+.backend-console.compact .service-grid,
+.backend-console.compact .backend-flow {
+  grid-template-columns: 1fr;
+}
+
+.backend-console.compact .flow-arrow {
+  display: none;
+}
+
+.backend-console.compact .run-feed-head,
+.backend-console.compact .run-item {
+  grid-template-columns: 1fr;
+}
+
+.backend-console.compact .run-feed-head span,
+.backend-console.compact .run-item small {
+  grid-column: auto;
+}
+
+.panel-actions,
+.dock-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.collapsed-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .runtime-strip {
@@ -545,18 +714,29 @@ h2 {
   gap: 6px;
   max-width: 100%;
   min-height: 28px;
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
-  padding: 0 9px;
-  white-space: nowrap;
+  line-height: 1.2;
+  padding: 5px 9px;
+  text-overflow: ellipsis;
 }
 
 .status-token b {
+  flex: 0 0 auto;
   color: var(--ink);
+}
+
+.status-token > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-token.ok {
@@ -652,6 +832,17 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.service-row span,
+.service-row strong,
+.run-item span,
+.run-item strong,
+.run-item em,
+.run-item small,
+.flow-step strong,
+.flow-step span {
+  max-width: 100%;
 }
 
 .run-feed {
@@ -801,15 +992,18 @@ h2 {
 
 .approval-button {
   display: inline-grid;
+  width: 82px;
   place-items: center;
   min-width: 72px;
-  min-height: 38px;
+  min-height: 42px;
   padding: 0 16px;
   color: white;
   font-weight: 900;
   line-height: 1;
+  overflow: hidden;
   text-align: center;
   white-space: nowrap;
+  writing-mode: horizontal-tb;
 }
 
 .approval-button.deny {
@@ -852,6 +1046,11 @@ h2 {
   box-shadow: none;
 }
 
+.artifact-dock.collapsed {
+  display: flex;
+  align-items: center;
+}
+
 .log-preview {
   max-height: 78px;
   margin: 8px 0 0;
@@ -880,12 +1079,27 @@ h2 {
 
 .dock-header {
   margin-bottom: 8px;
+  min-width: 0;
+}
+
+.artifact-dock.collapsed .dock-header {
+  width: 100%;
+  margin-bottom: 0;
 }
 
 .dock-header span,
 .artifact-row small {
   color: var(--muted);
   font-size: 12px;
+}
+
+.dock-header strong,
+.dock-header span,
+.panel-header h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .artifact-row {
@@ -912,6 +1126,10 @@ h2 {
   padding: 18px 14px;
 }
 
+.app-shell.inspector-collapsed .inspector {
+  display: none;
+}
+
 .panel {
   padding: 14px;
   box-shadow: none;
@@ -919,6 +1137,7 @@ h2 {
 
 .panel-header {
   margin-bottom: 12px;
+  min-width: 0;
 }
 
 .panel-header h2::before {
@@ -930,6 +1149,10 @@ h2 {
   background: var(--rose);
   vertical-align: -2px;
   content: "";
+}
+
+.panel-header h2 {
+  flex: 1 1 auto;
 }
 
 .quota-number {
@@ -979,6 +1202,10 @@ h2 {
 .metric-grid strong,
 .metric-grid span {
   display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-grid strong {
@@ -1055,6 +1282,8 @@ h2 {
 }
 
 .experiment-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 820;
 }
 
@@ -1067,6 +1296,8 @@ h2 {
 .timeline {
   display: grid;
   gap: 12px;
+  min-height: 0;
+  overflow: auto;
 }
 
 .timeline-item {
@@ -1087,6 +1318,7 @@ h2 {
 
 .timeline-panel {
   min-height: 220px;
+  overflow: hidden;
 }
 
 .integration-mini {
@@ -1279,10 +1511,27 @@ h2 {
 }
 
 .info-block {
+  min-width: 0;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-2);
+}
+
+.info-block strong,
+.model-card strong,
+.permission-card strong,
+.stat-card strong,
+.table-head span,
+.table-row span,
+.bar-row span,
+.bar-row strong,
+.setup-step strong,
+.setup-step p,
+.checklist-grid label,
+.status-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .code-row {
@@ -1564,6 +1813,19 @@ h2 {
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .app-shell.inspector-collapsed,
+  .app-shell.sidebar-collapsed.inspector-collapsed {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .app-shell.sidebar-collapsed.inspector-collapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
   .inspector {
     display: none;
   }
@@ -1574,6 +1836,10 @@ h2 {
 
   .chat-layout {
     grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .chat-layout.history-collapsed {
+    grid-template-columns: 56px minmax(0, 1fr);
   }
 
   .install-flow,
@@ -1636,7 +1902,11 @@ h2 {
 
   .topbar-actions {
     display: grid;
-    grid-template-columns: 68px minmax(0, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .topbar-actions .icon-button {
     width: 100%;
   }
 
@@ -1652,8 +1922,22 @@ h2 {
     overflow: auto;
   }
 
+  .chat-layout.history-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .conversation-history {
     max-height: 220px;
+  }
+
+  .conversation-history.collapsed {
+    max-height: none;
+    min-height: 54px;
+  }
+
+  .history-rail {
+    grid-template-columns: 1fr 48px;
+    align-items: center;
   }
 
   .chat-main {
@@ -1684,6 +1968,10 @@ h2 {
   .approval-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .approval-button {
+    width: 100%;
   }
 
   .tool-strip {

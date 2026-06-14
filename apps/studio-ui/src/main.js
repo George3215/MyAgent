@@ -15,6 +15,13 @@ const state = {
   runs: [],
   chatSessions: [],
   activeChatId: "",
+  collapsed: {
+    sidebar: false,
+    inspector: false,
+    history: false,
+    backend: false,
+    sessionLog: false,
+  },
 };
 
 const API_BASE = resolveApiBase();
@@ -158,6 +165,9 @@ const models = [
 const viewHost = document.querySelector("#viewHost");
 const viewTitle = document.querySelector("#viewTitle");
 const viewKicker = document.querySelector("#viewKicker");
+const appShell = document.querySelector("#app");
+const toggleSidebarButton = document.querySelector("#toggleSidebar");
+const toggleInspectorButton = document.querySelector("#toggleInspector");
 
 function h(tag, className, content) {
   const node = document.createElement(tag);
@@ -198,6 +208,21 @@ function updateNumbers() {
   document.querySelector("#runCost").textContent = state.runCost.toString();
   document.querySelector("#quotaMeter").style.width = `${Math.min(92, 100 - state.quota / 120)}%`;
   document.querySelector("#experimentMeter").style.width = `${state.progress}%`;
+}
+
+function applyLayoutState() {
+  appShell?.classList.toggle("sidebar-collapsed", state.collapsed.sidebar);
+  appShell?.classList.toggle("inspector-collapsed", state.collapsed.inspector);
+  if (toggleSidebarButton) {
+    toggleSidebarButton.textContent = state.collapsed.sidebar ? "导航" : "侧栏";
+    toggleSidebarButton.title = state.collapsed.sidebar ? "展开左侧导航" : "折叠左侧导航";
+    toggleSidebarButton.setAttribute("aria-expanded", String(!state.collapsed.sidebar));
+  }
+  if (toggleInspectorButton) {
+    toggleInspectorButton.textContent = state.collapsed.inspector ? "状态" : "状态";
+    toggleInspectorButton.title = state.collapsed.inspector ? "展开右侧状态栏" : "折叠右侧状态栏";
+    toggleInspectorButton.setAttribute("aria-expanded", String(!state.collapsed.inspector));
+  }
 }
 
 async function apiGet(path) {
@@ -340,7 +365,7 @@ function statusTone(status) {
 function statusToken(label, status) {
   const safeLabel = escapeHtml(label);
   const safeStatus = escapeHtml(displayValue(status, "unknown"));
-  return `<span class="status-token ${statusTone(status)}"><b>${safeLabel}</b>${safeStatus}</span>`;
+  return `<span class="status-token ${statusTone(status)}" title="${safeLabel}: ${safeStatus}"><b>${safeLabel}</b><span>${safeStatus}</span></span>`;
 }
 
 function serviceCard({ title, status, meta, rows, tone }) {
@@ -363,7 +388,7 @@ function serviceCard({ title, status, meta, rows, tone }) {
   `;
 }
 
-function backendConsole({ compact = false } = {}) {
+function backendConsole({ compact = false, collapsible = false, collapsed = false } = {}) {
   const claude = state.claude || {};
   const ollama = state.ollama || {};
   const core = state.bootstrap || {};
@@ -372,12 +397,25 @@ function backendConsole({ compact = false } = {}) {
   const security = state.backend?.security || {};
   const neverAllow = Array.isArray(security.never_allow) ? security.never_allow : [];
   const recentRuns = Array.isArray(state.runs) ? state.runs.slice(0, 3) : [];
-  const wrap = h("section", `backend-console wide-panel ${compact ? "compact" : ""}`);
+  const wrap = h("section", `backend-console wide-panel ${compact ? "compact" : ""} ${collapsed ? "collapsed" : ""}`);
+  const toggleButton = collapsible
+    ? `<button class="icon-button inline-toggle" id="toggleBackendPanel" type="button" title="${collapsed ? "展开后端状态" : "折叠后端状态"}">${collapsed ? "展开" : "折叠"}</button>`
+    : "";
   wrap.innerHTML = `
     <div class="panel-header">
       <h2>Claude Code / EvoScientist 后端</h2>
-      <span class="panel-badge ${state.apiOnline ? "active" : ""}">${state.apiOnline ? "studio-api online" : "studio-api offline"}</span>
+      <div class="panel-actions">
+        <span class="panel-badge ${state.apiOnline ? "active" : ""}">${state.apiOnline ? "studio-api online" : "studio-api offline"}</span>
+        ${toggleButton}
+      </div>
     </div>
+    ${collapsed ? `
+      <div class="collapsed-summary">
+        ${statusToken("api", apiBaseLabel())}
+        ${statusToken("runtime", runtime.active_runtime || "claude_code")}
+        ${statusToken("model", model.model || "kimi-k2.5:cloud")}
+      </div>
+    ` : `
     <div class="runtime-strip">
       ${statusToken("api", apiBaseLabel())}
       ${statusToken("runtime", runtime.active_runtime || "claude_code")}
@@ -456,22 +494,31 @@ function backendConsole({ compact = false } = {}) {
       <div class="flow-arrow">→</div>
       <div class="flow-step"><strong>Output</strong><span>日志、实验进度、产物、记忆</span></div>
     </div>
+    `}
   `;
   return wrap;
 }
 
 function chatView() {
-  const wrap = h("div", "chat-layout");
+  const wrap = h("div", `chat-layout ${state.collapsed.history ? "history-collapsed" : ""}`);
   const session = activeChatSession();
   const messages = Array.isArray(session?.messages) ? session.messages : [];
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
   const runtime = state.runtime?.active_runtime || "claude_code";
 
-  const history = h("aside", "conversation-history");
-  history.innerHTML = `
+  const history = h("aside", `conversation-history ${state.collapsed.history ? "collapsed" : ""}`);
+  history.innerHTML = state.collapsed.history ? `
+    <div class="history-rail">
+      <button class="rail-button" id="toggleHistory" type="button" title="展开会话历史">历史</button>
+      <button class="rail-button" id="newChat" type="button" title="新建会话">+</button>
+    </div>
+  ` : `
     <div class="history-head">
       <strong>会话历史</strong>
-      <button class="icon-button" id="newChat" type="button" title="新建会话">+</button>
+      <div class="history-head-actions">
+        <button class="icon-button inline-toggle" id="toggleHistory" type="button" title="折叠会话历史">折叠</button>
+        <button class="icon-button" id="newChat" type="button" title="新建会话">+</button>
+      </div>
     </div>
     <div class="history-list">
       ${state.chatSessions.length ? state.chatSessions.map((item) => `
@@ -488,7 +535,7 @@ function chatView() {
     </div>
   `;
 
-  const main = h("section", "chat-main");
+  const main = h("section", `chat-main ${state.collapsed.sessionLog ? "log-collapsed" : ""}`);
   const chat = h("section", "chat-feed");
   chat.innerHTML = messages.length ? messages.map(chatMessageHtml).join("") : `
     <div class="message assistant">
@@ -502,7 +549,7 @@ function chatView() {
     </div>
   `;
 
-  chat.append(backendConsole({ compact: true }));
+  chat.append(backendConsole({ compact: true, collapsible: true, collapsed: state.collapsed.backend }));
 
   const composer = h("form", "composer");
   composer.innerHTML = `
@@ -549,10 +596,16 @@ function chatView() {
     input.value = "";
   });
 
-  const lower = h("section", "artifact-dock");
+  const lower = h("section", `artifact-dock ${state.collapsed.sessionLog ? "collapsed" : ""}`);
   lower.innerHTML = `
-    <div class="dock-header"><strong>当前会话日志</strong><span>${escapeHtml(session?.title || "新会话")}</span></div>
-    ${latestAssistant ? `
+    <div class="dock-header">
+      <strong>当前会话日志</strong>
+      <div class="dock-actions">
+        <span>${escapeHtml(session?.title || "新会话")}</span>
+        <button class="icon-button inline-toggle" id="toggleSessionLog" type="button" title="${state.collapsed.sessionLog ? "展开当前日志" : "折叠当前日志"}">${state.collapsed.sessionLog ? "展开" : "折叠"}</button>
+      </div>
+    </div>
+    ${state.collapsed.sessionLog ? "" : latestAssistant ? `
       <div class="artifact-row"><span>Runtime</span><small>${escapeHtml(latestAssistant.runtime || "unknown")}</small></div>
       <div class="artifact-row"><span>Status</span><small>${escapeHtml(latestAssistant.status || "unknown")}</small></div>
       <div class="artifact-row"><span>Run ID</span><small>${escapeHtml(latestAssistant.run_id || "")}</small></div>
@@ -960,6 +1013,7 @@ function renderView(view) {
   viewKicker.textContent = kicker;
   viewTitle.textContent = title;
   viewHost.replaceChildren(views[nextView]());
+  applyLayoutState();
 }
 
 function activateNav(view) {
@@ -1011,6 +1065,27 @@ viewHost.addEventListener("click", async (event) => {
     renderSidebarSessions();
     renderView("chat");
     location.hash = "chat";
+    return;
+  }
+
+  const toggleHistoryButton = event.target.closest("#toggleHistory");
+  if (toggleHistoryButton) {
+    state.collapsed.history = !state.collapsed.history;
+    renderView("chat");
+    return;
+  }
+
+  const toggleBackendButton = event.target.closest("#toggleBackendPanel");
+  if (toggleBackendButton) {
+    state.collapsed.backend = !state.collapsed.backend;
+    renderView("chat");
+    return;
+  }
+
+  const toggleSessionLogButton = event.target.closest("#toggleSessionLog");
+  if (toggleSessionLogButton) {
+    state.collapsed.sessionLog = !state.collapsed.sessionLog;
+    renderView("chat");
     return;
   }
 
@@ -1203,6 +1278,16 @@ viewHost.addEventListener("click", async (event) => {
   }
 });
 
+toggleSidebarButton?.addEventListener("click", () => {
+  state.collapsed.sidebar = !state.collapsed.sidebar;
+  applyLayoutState();
+});
+
+toggleInspectorButton?.addEventListener("click", () => {
+  state.collapsed.inspector = !state.collapsed.inspector;
+  applyLayoutState();
+});
+
 function pollClaude() {
   const timer = setInterval(async () => {
     try {
@@ -1281,6 +1366,7 @@ renderTasks();
 renderTimeline();
 updateNumbers();
 const initialView = location.hash.replace("#", "") || "chat";
+applyLayoutState();
 activateNav(initialView);
 renderView(initialView);
 refreshBackendState({ silent: true });
