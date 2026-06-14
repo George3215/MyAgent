@@ -377,6 +377,16 @@ h2 {
   overflow: auto;
 }
 
+.history-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.history-actions #refreshChatHistory {
+  grid-column: 1 / -1;
+}
+
 .history-item {
   display: grid;
   gap: 4px;

@@ -133,6 +133,7 @@ The bundled sidecar exposes:
 - `GET /api/config/model`
 - `GET /api/chat/state`
 - `POST /api/chat/send`
+- `POST /api/chat/clear`
 - `POST /api/run`
 
 This is the minimum "frontend and backend are connected" path. The frontend does

@@ -1105,6 +1105,31 @@ def send_chat_message(payload: dict) -> dict:
     return {"session": session, "run": run_record, "chat": refresh_chat_state()}
 
 
+def clear_chat_messages(payload: dict) -> dict:
+    scope = str(payload.get("scope") or "session").strip().lower()
+    session_id = str(payload.get("session_id") or "").strip()
+    data = load_chat_state()
+
+    if scope == "all":
+        data["sessions"] = []
+        write_chat_state(data)
+        return {"cleared": "all", "session_id": "", "chat": data}
+
+    if not session_id:
+        raise RuntimeError("session_id is required")
+
+    session = next((item for item in data["sessions"] if item.get("id") == session_id), None)
+    if not session:
+        raise RuntimeError("chat session not found")
+
+    session["messages"] = []
+    session["updated_at"] = now()
+    session["cleared_at"] = session["updated_at"]
+    data["sessions"].sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+    write_chat_state(data)
+    return {"cleared": "session", "session_id": session_id, "chat": data}
+
+
 def save_model_config(payload: dict) -> dict:
     ensure_home()
     mode = str(payload.get("mode") or "local_model")
@@ -1487,6 +1512,8 @@ class StudioHandler(BaseHTTPRequestHandler):
             self.respond(start_run(payload))
         elif path == "/api/chat/send":
             self.respond(send_chat_message(payload))
+        elif path == "/api/chat/clear":
+            self.respond(clear_chat_messages(payload))
         else:
             self.respond({"error": "not found"}, status=404)
 

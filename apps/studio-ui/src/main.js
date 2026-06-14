@@ -230,10 +230,7 @@ async function refreshBackendState({ silent = false } = {}) {
     const runData = await apiGet("/api/runs");
     state.runs = Array.isArray(runData.runs) ? runData.runs : [];
     const chatData = await apiGet("/api/chat/state");
-    state.chatSessions = Array.isArray(chatData.sessions) ? chatData.sessions : [];
-    if (!state.activeChatId && state.chatSessions.length) {
-      state.activeChatId = state.chatSessions[0].id;
-    }
+    applyChatState(chatData);
     renderTimeline({
       t: "now",
       title: "studio-api",
@@ -252,6 +249,16 @@ async function refreshBackendState({ silent = false } = {}) {
   }
 }
 
+function applyChatState(chatData) {
+  state.chatSessions = Array.isArray(chatData?.sessions) ? chatData.sessions : [];
+  if (state.activeChatId && !state.chatSessions.some((session) => session.id === state.activeChatId)) {
+    state.activeChatId = state.chatSessions[0]?.id || "";
+  }
+  if (!state.activeChatId && state.chatSessions.length) {
+    state.activeChatId = state.chatSessions[0].id;
+  }
+}
+
 function updateBackendBadges() {
   const coreBadge = document.querySelector("#coreStateBadge");
   if (coreBadge) {
@@ -265,15 +272,15 @@ function updateBackendBadges() {
   }
 }
 
-async function refreshChatState() {
+async function refreshChatState({ notify = false } = {}) {
   try {
     const chatData = await apiGet("/api/chat/state");
-    state.chatSessions = Array.isArray(chatData.sessions) ? chatData.sessions : [];
-    if (!state.activeChatId && state.chatSessions.length) {
-      state.activeChatId = state.chatSessions[0].id;
-    }
+    applyChatState(chatData);
     renderSidebarSessions();
     if (state.view === "chat") renderView("chat");
+    if (notify) {
+      renderTimeline({ t: "now", title: "chat history", body: `已刷新 ${state.chatSessions.length} 个会话` });
+    }
   } catch (error) {
     renderTimeline({ t: "now", title: "chat history", body: error.message });
   }
@@ -474,7 +481,11 @@ function chatView() {
         </button>
       `).join("") : `<div class="history-empty">暂无历史。发送第一条消息后会自动保存。</div>`}
     </div>
-    <button class="primary-button small secondary" id="refreshChatHistory" type="button">刷新历史</button>
+    <div class="history-actions">
+      <button class="primary-button small secondary" id="refreshChatHistory" type="button">刷新历史</button>
+      <button class="primary-button small ghost" id="clearChatMessages" type="button" ${session ? "" : "disabled"}>清空当前</button>
+      <button class="primary-button small ghost" id="clearAllChatHistory" type="button" ${state.chatSessions.length ? "" : "disabled"}>清空全部</button>
+    </div>
   `;
 
   const main = h("section", "chat-main");
@@ -519,7 +530,7 @@ function chatView() {
         timeout_seconds: runtimeSelect.value === "claude_code" ? 90 : 180,
       });
       state.activeChatId = response.session?.id || state.activeChatId;
-      state.chatSessions = Array.isArray(response.chat?.sessions) ? response.chat.sessions : state.chatSessions;
+      applyChatState(response.chat || {});
       state.runtime = { ...(state.runtime || {}), active_runtime: runtimeSelect.value };
       if (response.error) {
         renderTimeline({ t: "now", title: "chat error", body: response.error });
@@ -1014,10 +1025,50 @@ viewHost.addEventListener("click", async (event) => {
   const refreshChatButton = event.target.closest("#refreshChatHistory");
   if (refreshChatButton) {
     refreshChatButton.disabled = true;
+    refreshChatButton.textContent = "刷新中";
     try {
-      await refreshChatState();
+      await refreshChatState({ notify: true });
     } finally {
       refreshChatButton.disabled = false;
+      refreshChatButton.textContent = "刷新历史";
+    }
+    return;
+  }
+
+  const clearChatButton = event.target.closest("#clearChatMessages");
+  if (clearChatButton) {
+    const session = activeChatSession();
+    if (!session) return;
+    clearChatButton.disabled = true;
+    clearChatButton.textContent = "清空中";
+    try {
+      const response = await apiPost("/api/chat/clear", {
+        scope: "session",
+        session_id: session.id,
+      });
+      applyChatState(response.chat || {});
+      renderSidebarSessions();
+      renderView("chat");
+      renderTimeline({ t: "now", title: "chat history", body: `已清空当前会话：${session.title || session.id}` });
+    } catch (error) {
+      renderTimeline({ t: "now", title: "clear chat error", body: error.message });
+    }
+    return;
+  }
+
+  const clearAllChatButton = event.target.closest("#clearAllChatHistory");
+  if (clearAllChatButton) {
+    clearAllChatButton.disabled = true;
+    clearAllChatButton.textContent = "清空中";
+    try {
+      const response = await apiPost("/api/chat/clear", { scope: "all" });
+      state.activeChatId = "";
+      applyChatState(response.chat || {});
+      renderSidebarSessions();
+      renderView("chat");
+      renderTimeline({ t: "now", title: "chat history", body: "已清空全部会话历史" });
+    } catch (error) {
+      renderTimeline({ t: "now", title: "clear chat error", body: error.message });
     }
     return;
   }
@@ -1201,20 +1252,29 @@ function pollBootstrap() {
   }, 1800);
 }
 
-document.querySelector("#refreshQuota").addEventListener("click", () => {
-  state.quota = Math.max(0, state.quota - 7);
-  state.todayCost += 7;
-  state.runCost += 3;
-  updateNumbers();
-  renderTimeline({ t: "now", title: "quota", body: "已同步托管网关额度" });
+document.querySelector("#refreshQuota").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  const previous = button.textContent;
+  button.textContent = "刷新中";
+  try {
+    await refreshBackendState();
+  } finally {
+    button.disabled = false;
+    button.textContent = previous;
+  }
 });
 
 document.querySelector("#runDemo").addEventListener("click", () => {
-  state.progress = Math.min(96, state.progress + 8);
-  state.runCost += 11;
-  state.quota = Math.max(0, state.quota - 11);
-  updateNumbers();
-  renderTimeline({ t: "now", title: "run", body: "模拟任务推进，实验进度已更新" });
+  state.activeChatId = "";
+  activateNav("chat");
+  renderSidebarSessions();
+  renderView("chat");
+  location.hash = "chat";
+  requestAnimationFrame(() => {
+    viewHost.querySelector(".composer input")?.focus();
+  });
+  renderTimeline({ t: "now", title: "chat", body: "已创建空白任务输入区" });
 });
 
 renderTasks();
